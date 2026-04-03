@@ -26,7 +26,12 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 
 ```bash
 claude plugin marketplace add RyanCarrier/rc-toolkit
+
+# Install globally (available in all projects)
 claude plugin install rc-toolkit
+
+# Or install for current project only
+claude plugin install rc-toolkit --scope project
 ```
 
 ### Option 2: Plugin directory flag
