@@ -1,0 +1,17 @@
+{
+  "name": "rc-toolkit",
+  "owner": {
+    "name": "rcarrier"
+  },
+  "plugins": [
+    {
+      "name": "rc-toolkit",
+      "description": "Code review, CI debugging, and git workflow commands",
+      "author": {
+        "name": "rcarrier"
+      },
+      "source": "./plugins/rc-toolkit",
+      "category": "development"
+    }
+  ]
+}

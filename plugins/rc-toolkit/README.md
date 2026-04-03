@@ -22,36 +22,27 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 
 ## Installation
 
-### Option 1: Plugin directory flag
+### Option 1: Marketplace (recommended)
 
 ```bash
-claude --plugin-dir /path/to/rc-toolkit
+claude plugin marketplace add RyanCarrier/rc-toolkit
+claude plugin install rc-toolkit
 ```
 
-### Option 2: Project-level install
+### Option 2: Plugin directory flag
 
-Add to your project's `.claude/plugins.json`:
+```bash
+claude --plugin-dir /path/to/rc-toolkit/plugins/rc-toolkit
+```
+
+### Option 3: Manual (project or global)
+
+Add to `.claude/settings.json` (project-level) or `~/.claude/settings.json` (global):
 
 ```json
 {
   "plugins": [
-    {
-      "path": "/path/to/rc-toolkit"
-    }
-  ]
-}
-```
-
-### Option 3: Global install
-
-Add to `~/.claude/plugins.json`:
-
-```json
-{
-  "plugins": [
-    {
-      "path": "/path/to/rc-toolkit"
-    }
+    "/path/to/rc-toolkit/plugins/rc-toolkit"
   ]
 }
 ```
