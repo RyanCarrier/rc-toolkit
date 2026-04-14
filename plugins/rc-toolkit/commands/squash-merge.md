@@ -88,10 +88,16 @@ If in a worktree:
    pwd
    ```
 
-3. Change directory to the main worktree, then remove the current worktree:
+3. Change directory to the main worktree first (as its own command, do NOT combine with git):
 
    ```bash
-   cd "<main-worktree-path>" && git worktree remove "<current-worktree-path>"
+   cd "<main-worktree-path>"
+   ```
+
+4. Then remove the current worktree (as a separate command):
+
+   ```bash
+   git worktree remove "<current-worktree-path>"
    ```
 
    You are now in the main worktree on the base branch. All subsequent commands run from here.
