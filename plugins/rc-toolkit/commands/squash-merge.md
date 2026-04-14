@@ -2,7 +2,7 @@
 description: Squash-merge current PR and delete branch (worktree-safe)
 model: sonnet
 context: none
-allowed-tools: Bash(gh pr:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git worktree:*), Bash(git status:*), Bash(git log:*), Bash(cd:*), Bash(pwd:*), Bash(git pull:*)
+allowed-tools: Bash(gh pr:*), Bash(git rev-parse:*), Bash(git worktree:*), Bash(git status:*), Bash(git log:*), Bash(pwd:*), Bash(bash:*)
 ---
 
 # Squash Merge PR
@@ -68,61 +68,31 @@ CI: <pass/fail/pending summary>
 Merge status: <mergeStateStatus>
 ```
 
-### Step 5: Worktree cleanup (worktree only)
+### Step 5: Execute merge via script
 
-**Skip this step if NOT in a worktree.** Jump to Step 6.
+The bundled script handles worktree removal, squash merge, branch deletion, and pulling — all in one call.
 
-If in a worktree:
-
-1. Get the main worktree path (the first entry from `git worktree list`):
-
-   ```bash
-   git worktree list --porcelain
-   ```
-
-   The first `worktree <path>` line is the main worktree.
-
-2. Save the current worktree path:
-
-   ```bash
-   pwd
-   ```
-
-3. Change directory to the main worktree first (as its own command, do NOT combine with git):
-
-   ```bash
-   cd "<main-worktree-path>"
-   ```
-
-4. Then remove the current worktree (as a separate command):
-
-   ```bash
-   git worktree remove "<current-worktree-path>"
-   ```
-
-   You are now in the main worktree on the base branch. All subsequent commands run from here.
-
-### Step 6: Squash merge and delete branch
-
-Use the PR number captured in Step 2 (required since you may no longer be on the branch):
+**If in a worktree**, first get the main worktree path and current worktree path:
 
 ```bash
-gh pr merge <number> --squash --delete-branch
+git worktree list --porcelain
 ```
 
-`--delete-branch` is safe here because:
-- In the worktree flow: the worktree was already removed and we're on the base branch in the main worktree, so the local branch checkout and deletion both succeed.
-- In the normal flow: works as normal.
+The first `worktree <path>` line is the main worktree. Get the current path with `pwd`.
 
-### Step 7: Update local base branch
-
-Pull the latest changes to ensure the local base branch matches the merge result:
+Then invoke the script with 5 arguments:
 
 ```bash
-git pull origin <baseRefName>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/squash-merge.sh" <number> <headRefName> <baseRefName> <main_worktree_path> <current_worktree_path>
 ```
 
-### Step 8: Report results
+**If NOT in a worktree**, invoke the script with 3 arguments:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/squash-merge.sh" <number> <headRefName> <baseRefName>
+```
+
+### Step 6: Report results
 
 Show:
 - Merge result (success/failure)
