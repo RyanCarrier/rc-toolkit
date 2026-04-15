@@ -11,6 +11,8 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:local-review` | Thorough review of all unpushed changes |
 | `/rc-toolkit:get-ci-failures` | Analyze the latest failing GitHub Actions run |
 | `/rc-toolkit:handle-copilot-review` | Fetch and triage Copilot's PR review |
+| `/rc-toolkit:handle-issue` | Fetch a GitHub issue by number and plan the fix |
+| `/rc-toolkit:create-issue` | Draft and open a new GitHub issue in the current repo |
 | `/rc-toolkit:squash-merge` | Squash-merge current PR and delete branch (worktree-safe) |
 | `/rc-toolkit:gemini-code-review` | Run Gemini's code-review extension on current branch |
 
