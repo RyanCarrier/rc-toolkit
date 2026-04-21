@@ -18,15 +18,17 @@ gemini extensions install https://github.com/gemini-cli-extensions/code-review
 
 ## Instructions
 
+**CRITICAL:** Your ONLY job is to run the exact Bash command below and output the result. Do NOT skip, modify, or "improve" the command. Do NOT substitute a different model name. Execute it exactly as written.
+
 ### Step 1: Run Gemini Code Review
 
-Always use the `/code-review` prompt. Run with `plan` approval mode so Gemini can execute read-only operations (like git diff) without manual approval:
+Run this exact command using the Bash tool with a 300s timeout. Do NOT change any flags or arguments:
 
 ```bash
-gemini --model gemini-3.1-pro-preview -p "/code-review" --approval-mode plan -e code-review 2>tmp/gemini_code_review_ext_error.txt
+mkdir -p tmp && gemini --model gemini-3.1-pro-preview -p "/code-review" --approval-mode plan -e code-review 2>tmp/gemini_code_review_ext_error.txt
 ```
 
-Set a generous timeout (300s) as Gemini will make multiple tool calls.
+**Model:** The model MUST be `gemini-3.1-pro-preview` — exactly as shown above. Do NOT substitute any other model name (e.g. `gemini-pro`, `gemini-1.5-pro`, `gemini-2.0-flash`, `gemini-2.5-pro`). Use `gemini-3.1-pro-preview` verbatim.
 
 ### Step 2: Output the Result
 
