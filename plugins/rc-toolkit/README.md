@@ -15,6 +15,8 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:create-issue` | Draft and open a new GitHub issue in the current repo |
 | `/rc-toolkit:squash-merge` | Squash-merge current PR and delete branch (worktree-safe) |
 | `/rc-toolkit:gemini-code-review` | Run Gemini's code-review extension on current branch |
+| `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
+| `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
 
 ## Prerequisites
 
@@ -22,6 +24,8 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 - [Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli) (`gemini`) — required by `gemini-code-review`
   - Plus the code-review extension: `gemini extensions install https://github.com/gemini-cli-extensions/code-review`
   - `GEMINI_API_KEY` environment variable set
+- [Codex CLI](https://www.npmjs.com/package/@openai/codex) (`codex`) — required by `codex-review-local`, `codex-review-pr`
+  - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
 
 ## Installation
 
