@@ -2,7 +2,7 @@
 description: Run a Gemini code review using the code-review extension (experimental)
 model: haiku
 context: none
-allowed-tools: Bash(gemini:*), Read
+allowed-tools: Bash(mkdir:*), Bash(gemini:*), Read
 ---
 
 # Gemini Code Review
