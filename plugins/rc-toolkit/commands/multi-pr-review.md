@@ -6,53 +6,80 @@ context: none
 
 # Multi PR Review
 
-Run three independent code reviews in parallel and consolidate findings into a unified report.
+You are a consolidator. Launch three independent review subagents in parallel, collect their results, and produce a unified report. Do NOT perform any review yourself.
 
 ## Step 1: Detect Base Branch
+
+Run these to determine the base branch and current branch:
 
 ```bash
 git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master)
 ```
 
+```bash
+git branch --show-current
+```
+
 If the current branch IS the base branch, tell the user and stop.
 
-## Step 2: Launch Parallel Reviews
+Store the detected base branch name — you will pass it to each subagent.
 
-Invoke all three reviews in a SINGLE message by calling the Skill tool three times in parallel:
+## Step 2: Launch Three Review Subagents
 
-1. `Skill(skill="pr-review-toolkit:review-pr")`
-2. `Skill(skill="rc-toolkit:codex-review-pr")`
-3. `Skill(skill="rc-toolkit:gemini-review-pr")`
+Use the **Agent tool** to spawn all three subagents in a **single message** so they run in parallel. Each subagent performs one independent review and returns its findings to you.
 
 **CRITICAL RULES:**
-- Do NOT write your own review logic or analysis — each skill handles the review autonomously
-- Do NOT set any args unless the user specified review aspects
-- Call all three Skill invocations in a single parallel tool call
+- All three Agent calls MUST be in a single message (parallel execution)
+- Do NOT perform any review logic yourself — you are only an orchestrator
+- Do NOT modify or summarize subagent outputs before consolidation
 
-Each skill runs its own review process (including spawning its own subagents as needed) and returns results. Your job is only to invoke them and consolidate the output.
+### Subagent 1 — Claude PR Review
 
-If any reviewer fails (tool not installed, auth error, skill unavailable), note it in the report and continue with the others.
+```
+Agent(
+  description="Claude PR review",
+  prompt="You are reviewing a PR. The base branch is <BASE_BRANCH>. Invoke the review skill by calling: Skill(skill='pr-review-toolkit:review-pr'). Return the complete review output exactly as produced. Do not add your own analysis."
+)
+```
 
-## Step 3: Consolidate Findings
+### Subagent 2 — Codex Review
 
-Once all reviews complete:
+```
+Agent(
+  description="Codex PR review",
+  prompt="You are running an OpenAI Codex PR code review. Invoke the review by calling: Skill(skill='rc-toolkit:codex-review-pr'). Return the complete review output exactly as produced. Do not add your own analysis."
+)
+```
 
-1. **Deduplicate** — Merge issues flagged by multiple reviewers into a single entry, noting which reviewers agreed
+### Subagent 3 — Gemini Review
+
+```
+Agent(
+  description="Gemini PR review",
+  prompt="You are running a Google Gemini PR code review. Invoke the review by calling: Skill(skill='rc-toolkit:gemini-review-pr'). Return the complete review output exactly as produced. Do not add your own analysis."
+)
+```
+
+## Step 3: Consolidate Results
+
+Once all three subagents return:
+
+1. **Deduplicate** — merge issues flagged by multiple reviewers into a single entry, noting which reviewers agreed
 2. **Classify severity:**
    - **CRITICAL**: Security vulnerabilities, data loss, system-breaking bugs
-   - **HIGH**: Bugs causing incorrect behavior, resource leaks, major architectural issues
+   - **HIGH**: Bugs, incorrect behavior, resource leaks, major architectural issues
    - **MEDIUM**: Missing validation, edge cases, performance concerns
    - **LOW**: Minor improvements, style suggestions
-3. **Boost confidence** — Issues flagged by 2+ reviewers independently carry higher weight
-4. **Discard noise** — Drop style-only suggestions and clear false positives
+3. **Boost confidence** — issues flagged by 2+ reviewers carry higher weight
+4. **Discard noise** — drop style-only suggestions and clear false positives
 
-## Step 4: Output Unified Report
+## Step 4: Output Report
 
 ```
 ## Multi PR Review Summary
 
-**Reviewers:** [list which reviewers completed successfully]
-**Files reviewed:** [count]
+**Reviewers:** [list which completed successfully]
+**Failed:** [list which failed with error details — omit section if all succeeded]
 **Issues found:** [count by severity]
 
 ### CRITICAL
@@ -67,7 +94,7 @@ Once all reviews complete:
 ### LOW
 ...
 
-### Reviewer Agreement
+### Cross-Reviewer Agreement
 [Issues where 2+ reviewers independently flagged the same problem]
 
 ### Recommendations
@@ -75,4 +102,4 @@ Once all reviews complete:
 [Specific action items if fixes needed]
 ```
 
-If no issues are found across all reviewers, state the changes look clean and are ready to merge.
+If no issues found across all reviewers, state the changes look clean and are ready to merge.
