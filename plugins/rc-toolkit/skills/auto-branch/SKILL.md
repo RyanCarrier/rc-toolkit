@@ -68,17 +68,17 @@ Push the branch and open a pull request.
 
 ### Phase 7: Comprehensive Review (2 rounds)
 
-Run the comprehensive-review agent to get multi-perspective feedback.
+Run the multi-pr-review agent to get multi-perspective feedback.
 
 **Round 1:**
-1. Invoke the comprehensive-review agent (rc-toolkit agent)
+1. Invoke the multi-pr-review agent (rc-toolkit agent)
 2. Analyze the consolidated findings
 3. Implement fixes for all CRITICAL and HIGH issues
 4. Implement fixes for MEDIUM issues where the fix is clear and low-risk
 5. Commit and push fixes
 
 **Round 2:**
-1. Run comprehensive-review again on the updated code
+1. Run multi-pr-review again on the updated code
 2. Implement any remaining fixes
 3. Commit and push
 

@@ -17,13 +17,13 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:gemini-review-pr` | Run Gemini's code-review extension on current branch |
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
-| `/rc-toolkit:comprehensive-review` | Multi-agent PR review (Claude + Gemini + Codex) |
+| `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Gemini + Codex) |
 
 ## Agents
 
 | Agent | Description |
 |-------|-------------|
-| `comprehensive-review` | Multi-agent PR review — runs Claude, Gemini, and Codex reviews in parallel, then consolidates findings |
+| `multi-pr-review` | Multi-agent PR review — runs Claude, Gemini, and Codex reviews in parallel, then consolidates findings |
 
 ## Skills
 
@@ -39,7 +39,7 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
   - `GEMINI_API_KEY` environment variable set
 - [Codex CLI](https://www.npmjs.com/package/@openai/codex) (`codex`) — required by `codex-review-local`, `codex-review-pr`
   - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
-- [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `comprehensive-review` agent
+- [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `multi-pr-review` agent
   - Install: `claude plugin add pr-review-toolkit --marketplace claude-plugins-official`
 
 ## Installation
