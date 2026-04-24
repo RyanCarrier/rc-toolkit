@@ -65,48 +65,40 @@ Prompt: "Run this bash command and return the full output: `mkdir -p tmp && code
 **Subagent 3 — Gemini Review:**
 Prompt: "Run the /rc-toolkit:gemini-review-pr skill using the Skill tool. Invoke it with skill name 'rc-toolkit:gemini-review-pr'. Return the complete review output."
 
-If any reviewer fails (tool not installed, auth error), note it in the report and continue with the others. A review with only 1-2 successful reviewers is still valuable.
+If any reviewer fails (tool not installed, auth error, empty output), include the failure reason in the report so the user can diagnose it. Continue with whichever reviewers succeed — a review with only 1-2 successful reviewers is still valuable.
 
-### Step 3: Consolidate Findings
+### Step 3: Collect and Present Findings
+
+Your job is to **collect and organize** the review results, NOT to validate or second-guess the reviewers' findings. Present each reviewer's output faithfully. Do not discard issues you think are false positives — let the user or a downstream agent make that call.
 
 Once all reviews complete:
 
-1. **Deduplicate** — Merge issues flagged by multiple reviewers into a single entry, noting which reviewers agreed
-2. **Classify severity:**
-   - **CRITICAL**: Security vulnerabilities, data loss, system-breaking bugs
-   - **HIGH**: Bugs causing incorrect behavior, resource leaks, major architectural issues
-   - **MEDIUM**: Missing validation, edge cases, performance concerns
-   - **LOW**: Minor improvements, style suggestions
-3. **Boost confidence** — Issues flagged by 2+ reviewers independently carry higher weight
-4. **Discard noise** — Drop style-only suggestions and clear false positives
+1. **Group by reviewer** — present each reviewer's findings in their own section
+2. **Note agreement** — if multiple reviewers flagged the same issue, call that out
+3. **Preserve detail** — include file paths, line numbers, and suggested fixes exactly as each reviewer reported them
 
 ### Step 4: Output Unified Report
 
 ```
 ## Comprehensive Review Summary
 
-**Reviewers:** [list which reviewers completed successfully]
-**Files reviewed:** [count]
-**Issues found:** [count by severity]
+**Reviewers:** [list which completed successfully and which failed]
 
-### CRITICAL
-- [issue] — file:line — flagged by [reviewers] — [description + suggested fix]
+### Failed Reviewers
+[For each failed reviewer: name, error message, and likely cause (e.g. "Codex: not authenticated — run `codex login`")]
+[Omit this section if all reviewers succeeded]
 
-### HIGH
-...
+### Claude PR Review
+[Full review output from pr-review-toolkit:review-pr]
 
-### MEDIUM
-...
+### Codex Review
+[Full review output from codex review]
 
-### LOW
-...
+### Gemini Review
+[Full review output from gemini-review-pr]
 
-### Reviewer Agreement
+### Cross-Reviewer Agreement
 [Issues where 2+ reviewers independently flagged the same problem]
-
-### Recommendations
-[Overall assessment: merge-ready, needs-fixes, or needs-rework]
-[Specific action items if fixes needed]
 ```
 
 If no issues are found across all reviewers, state the changes look clean and are ready to merge.

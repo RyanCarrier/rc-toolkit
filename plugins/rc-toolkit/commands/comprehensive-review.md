@@ -10,4 +10,4 @@ Run the `comprehensive-review` agent to perform a multi-agent PR review. This la
 
 ## Instructions
 
-Invoke the `comprehensive-review` agent and output its full report to the user.
+Invoke the `comprehensive-review` agent and output its full report to the user. Include failure reasons for any reviewer that didn't complete. Do not filter or validate the reviewers' findings — present them as-is.
