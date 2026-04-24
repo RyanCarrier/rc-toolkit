@@ -18,6 +18,18 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
 
+## Agents
+
+| Agent | Description |
+|-------|-------------|
+| `comprehensive-review` | Multi-agent PR review — runs Claude, Gemini, and Codex reviews in parallel, then consolidates findings |
+
+## Skills
+
+| Skill | Description |
+|-------|-------------|
+| `auto-branch` | Fully autonomous feature development — implements, tests, creates PR, reviews, monitors CI, and summarizes |
+
 ## Prerequisites
 
 - [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `handle-copilot-review`
@@ -26,6 +38,8 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
   - `GEMINI_API_KEY` environment variable set
 - [Codex CLI](https://www.npmjs.com/package/@openai/codex) (`codex`) — required by `codex-review-local`, `codex-review-pr`
   - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
+- [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `comprehensive-review` agent
+  - Install: `claude plugin add pr-review-toolkit --marketplace claude-plugins-official`
 
 ## Installation
 
