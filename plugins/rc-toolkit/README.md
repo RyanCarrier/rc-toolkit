@@ -17,6 +17,7 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:gemini-review-pr` | Run Gemini's code-review extension on current branch |
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
+| `/rc-toolkit:comprehensive-review` | Multi-agent PR review (Claude + Gemini + Codex) |
 
 ## Agents
 
