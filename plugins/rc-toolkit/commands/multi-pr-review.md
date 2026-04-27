@@ -103,3 +103,13 @@ Once all three subagents return:
 ```
 
 If no issues found across all reviewers, state the changes look clean and are ready to merge.
+
+## Step 5: Validate Results
+
+After outputting the consolidated report, run the validate-review command to filter out false positives:
+
+```
+Skill(skill="rc-toolkit:validate-review")
+```
+
+This performs a second pass over all flagged issues, reading the actual source code to confirm each one is genuine. The validated report replaces the initial consolidated report as the final output.
