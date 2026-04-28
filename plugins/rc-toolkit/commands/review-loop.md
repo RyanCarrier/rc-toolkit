@@ -22,10 +22,15 @@ Skill(skill="rc-toolkit:multi-pr-review")
 
 ### Step 2: Evaluate Results — THIS IS MANDATORY AFTER EVERY REVIEW
 
-After the review completes, you MUST parse the validated results and check for issues at CRITICAL, HIGH, or MEDIUM severity. Do not stop here. Do not summarize and exit. You must make a loop decision:
+**WARNING: The validate-review step inside multi-pr-review produces a "Recommendations" section. That is NOT your loop decision. You MUST still perform the severity count below before deciding whether to stop or continue. Do not relay the review output and stop — that is a bug.**
 
-- If **no issues above LOW** exist → report that the PR is clean and stop. **This is the ONLY condition that allows you to stop early.**
-- If **CRITICAL, HIGH, or MEDIUM issues** exist → you MUST proceed to Step 3. Do not stop.
+After the review skill returns, you MUST perform this mechanical check:
+
+1. **Count issues by severity.** Go through the validated results and count the number of CRITICAL, HIGH, and MEDIUM issues separately.
+2. **Write the counts explicitly** in your response: `CRITICAL: N, HIGH: N, MEDIUM: N`
+3. **Apply the rule:**
+   - If CRITICAL + HIGH + MEDIUM = 0 → report that the PR is clean and stop. **This is the ONLY condition that allows you to stop.**
+   - If CRITICAL + HIGH + MEDIUM > 0 → you MUST proceed to Step 3. **This includes cases where only MEDIUM issues remain. MEDIUM is not acceptable — only LOW is acceptable.**
 
 ### Step 3: Fix Issues
 
@@ -52,17 +57,21 @@ This keeps the review results in the orchestrator's context where they can be ev
 
 ### Step 5: Loop Check — MANDATORY
 
-After the review completes, you MUST evaluate the validated results again:
+**This is the same mechanical check as Step 2. Do not skip it.**
 
-- If **no issues above LOW** remain → report success and stop.
-- If **CRITICAL, HIGH, or MEDIUM issues** persist → go back to Step 3 with the new issues.
-- If **3 iterations** have been completed without reaching clean → stop and report the remaining issues. Something may need manual intervention.
+1. **Count issues by severity** from the new validated results: `CRITICAL: N, HIGH: N, MEDIUM: N`
+2. **Apply the rule:**
+   - If CRITICAL + HIGH + MEDIUM = 0 → report success and stop.
+   - If CRITICAL + HIGH + MEDIUM > 0 → go back to Step 3 with the new issues. **MEDIUM counts — it is NOT acceptable.**
+   - If **3 iterations** have been completed without reaching clean → stop and report the remaining issues. Something may need manual intervention.
 
-**Do not stop after receiving review results without evaluating them. The loop continues until the exit condition is met.**
+**Do not stop after receiving review results without performing the count. The loop continues until CRITICAL + HIGH + MEDIUM = 0 or the iteration limit is hit.**
 
 ## Rules
 
-- **Keep looping.** Your job is not done until the validated results contain only LOW severity issues (or none), or you hit the iteration limit. A single review+validate pass is never sufficient on its own — you must always evaluate and decide.
+- **Keep looping.** Your job is not done until CRITICAL + HIGH + MEDIUM = 0, or you hit the iteration limit. A single review+validate pass is never sufficient on its own — you must always perform the severity count and decide.
+- **MEDIUM is not acceptable.** Only LOW may remain. If MEDIUM issues exist, you must loop.
+- **The validate-review output is input to your decision, not the decision itself.** Even if validate-review says "needs-fixes" or "merge-ready", you must still count severities and apply the rule mechanically. Do not stop just because the review skill finished producing output.
 - Maximum 3 iterations to avoid infinite loops.
 - Each iteration should make measurable progress — if an iteration fixes zero issues, stop and report the stall to the user.
 - Do not fix LOW severity issues. They are acceptable.
