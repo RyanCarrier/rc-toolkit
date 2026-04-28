@@ -68,11 +68,11 @@ Read the relevant source code and apply fixes for each fixable failure. Follow e
 
 ### Step 6: Run Pre-Commit Checks
 
-After all fixes are applied, run pre-commit checks:
+After all fixes are applied, run pre-commit checks.
 
-**Option A — Pre-commit skill/command exists:** If a pre-commit skill or command is available (check `/help` or the conversation context for one), invoke it.
+**First, check for a pre-commit skill or command in the project.** Search available skills and commands (e.g., look for skills matching "pre-commit", "lint", "check", or "format" in the plugin/skill listings). If one exists, invoke it — it knows the project's specific checks and is always preferred.
 
-**Option B — Infer from project tooling:** If no pre-commit skill/command is available, detect the project's tooling and run the appropriate formatting, linting, and analysis commands. Look for:
+**Only if no pre-commit skill/command exists**, fall back to inferring from project tooling. Detect the project's tooling and run the appropriate commands. Look for:
 
 - `npm run lint` / `npm run check` / `npm run typecheck` / `npm run format`
 - `make lint` / `make check` / `make fmt`
