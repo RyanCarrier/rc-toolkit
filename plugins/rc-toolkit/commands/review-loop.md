@@ -12,13 +12,17 @@ Run a multi-PR review, fix issues, and repeat until only LOW severity issues (or
 
 ## Instructions
 
-### Step 1: Initial Review
+### Step 1: Initial Review (or reuse existing)
 
-Run the multi-PR review to get the current state:
+If a multi-PR review has already been completed in this conversation — for example, the user ran `/multi-pr-review` immediately before invoking this command, or pasted validated review output into the prompt — **reuse those existing validated results as your starting state and skip running a fresh review.** State explicitly that you are reusing the existing review, then proceed to Step 2.
+
+Otherwise, run the multi-PR review to get the current state:
 
 ```
 Skill(skill="rc-toolkit:multi-pr-review")
 ```
+
+Either way, you must have a set of validated review results before moving to Step 2.
 
 ### Step 2: Evaluate Results — THIS IS MANDATORY AFTER EVERY REVIEW
 
@@ -59,20 +63,40 @@ This keeps the review results in the orchestrator's context where they can be ev
 
 **This is the same mechanical check as Step 2. Do not skip it.**
 
+Track the number of fix+review iterations completed so far. Maintain an **iteration budget** that starts at **3**. The budget can be extended by the user (see below).
+
 1. **Count issues by severity** from the new validated results: `CRITICAL: N, HIGH: N, MEDIUM: N`
 2. **Apply the rule:**
    - If CRITICAL + HIGH + MEDIUM = 0 → report success and stop.
-   - If CRITICAL + HIGH + MEDIUM > 0 → go back to Step 3 with the new issues. **MEDIUM counts — it is NOT acceptable.**
-   - If **3 iterations** have been completed without reaching clean → stop and report the remaining issues. Something may need manual intervention.
+   - If CRITICAL + HIGH + MEDIUM > 0 **and** iterations completed < budget → go back to Step 3 with the new issues. **MEDIUM counts — it is NOT acceptable.**
+   - If CRITICAL + HIGH + MEDIUM > 0 **and** iterations completed ≥ budget → **prompt the user** using `AskUserQuestion` (see below). Do NOT silently stop.
 
-**Do not stop after receiving review results without performing the count. The loop continues until CRITICAL + HIGH + MEDIUM = 0 or the iteration limit is hit.**
+#### Iteration-budget exhausted: ask the user
+
+When the iteration budget is exhausted with issues still remaining, call `AskUserQuestion` with one question and these three options:
+
+- **"Continue 1 more iteration"** — extend the budget by 1 and resume at Step 3.
+- **"Continue 3 more iterations"** — extend the budget by 3 and resume at Step 3.
+- **"Stop and report"** — stop the loop and report the remaining issues for manual intervention.
+
+Include the current iteration count and a brief summary of the remaining issue counts (`CRITICAL: N, HIGH: N, MEDIUM: N`) in the question header so the user can make an informed choice.
+
+Apply the user's answer:
+- If they pick "Continue 1 more iteration" → budget += 1, go to Step 3.
+- If they pick "Continue 3 more iterations" → budget += 3, go to Step 3.
+- If they pick "Stop and report" → stop and report.
+
+If the budget is exhausted again later, prompt again with the same three options.
+
+**Do not stop after receiving review results without performing the count. The loop continues until CRITICAL + HIGH + MEDIUM = 0, or the user explicitly chooses to stop at the budget-exhausted prompt.**
 
 ## Rules
 
-- **Keep looping.** Your job is not done until CRITICAL + HIGH + MEDIUM = 0, or you hit the iteration limit. A single review+validate pass is never sufficient on its own — you must always perform the severity count and decide.
+- **Keep looping.** Your job is not done until CRITICAL + HIGH + MEDIUM = 0, or the user explicitly chooses to stop at the iteration-budget prompt. A single review+validate pass is never sufficient on its own — you must always perform the severity count and decide.
 - **MEDIUM is not acceptable.** Only LOW may remain. If MEDIUM issues exist, you must loop.
 - **The validate-review output is input to your decision, not the decision itself.** Even if validate-review says "needs-fixes" or "merge-ready", you must still count severities and apply the rule mechanically. Do not stop just because the review skill finished producing output.
-- Maximum 3 iterations to avoid infinite loops.
-- Each iteration should make measurable progress — if an iteration fixes zero issues, stop and report the stall to the user.
+- **Reuse an existing review** if one is already present in the conversation — do not waste a review run.
+- Default iteration budget is 3. When exhausted with issues remaining, prompt the user via `AskUserQuestion` (continue 1 more / continue 3 more / stop). Never silently stop at the budget.
+- Each iteration should make measurable progress — if an iteration fixes zero issues, stop and report the stall to the user (do not consume more of the budget on a stalled loop).
 - Do not fix LOW severity issues. They are acceptable.
 - **Use subagents** for the fix work (Step 3) to keep file edits and diffs out of the orchestrator context. Run the review (Step 4) directly from the orchestrator so the results are available for the loop decision without nested subagent depth.
