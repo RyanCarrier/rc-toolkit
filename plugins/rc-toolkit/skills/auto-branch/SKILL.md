@@ -66,27 +66,19 @@ Push the branch and open a pull request.
 2. Create the PR with `gh pr create` — write a clear title and description summarizing the changes, test plan, and any relevant context
 3. Note the PR number for subsequent steps
 
-### Phase 7: Comprehensive Review (2 rounds)
+### Phase 7: Comprehensive Review
 
-Run the multi-pr-review agent to get multi-perspective feedback.
+Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill, which iterates multi-PR review + fix cycles until only LOW severity issues remain (or the iteration budget is exhausted).
 
-**Round 1:**
-1. Invoke the multi-pr-review agent (rc-toolkit agent)
-2. Analyze the consolidated findings
-3. Implement fixes for all CRITICAL and HIGH issues
-4. Implement fixes for MEDIUM issues where the fix is clear and low-risk
-5. Commit and push fixes
+1. Invoke the loop:
 
-**Round 2:**
-1. Run multi-pr-review again on the updated code
-2. Implement any remaining fixes
-3. Commit and push
+   ```
+   Skill(skill="rc-toolkit:review-loop")
+   ```
 
-**After 2 rounds:** Present the user with a status update:
-- Summary of issues found and fixed across both rounds
-- Any remaining issues and their severity
-- Recommendation: whether more review rounds are needed or if a targeted review of specific areas would be more productive
-- Ask the user whether to continue with additional reviews or proceed to CI monitoring
+2. Let the loop run to completion. It handles its own severity counting, fix subagents, re-review, and iteration-budget prompts. Do NOT run `multi-pr-review` manually here — `review-loop` owns this phase.
+3. When the loop reports either "PR is clean" or stops at the user's direction (budget-exhausted prompt), record its final summary (issues found/fixed, any remaining LOW items, total iterations) for the Phase 9 summary.
+4. Proceed to Phase 8.
 
 ### Phase 8: CI Monitoring
 
