@@ -43,7 +43,7 @@ Use the **Agent tool** to spawn a subagent that **only** fixes the issues, runs 
 ```
 Agent(
   description="Fix review issues",
-  prompt="You have the following review issues to fix:\n\n<PASTE THE CRITICAL/HIGH/MEDIUM ISSUES HERE>\n\nFix these issues following existing code conventions. After fixing, check for a pre-commit skill or command in the project first (search available skills for 'pre-commit', 'lint', 'check', 'format') and use it if found — only fall back to inferring tooling commands if no skill exists. Then commit and push. Report what you fixed."
+  prompt="You have the following review issues to fix:\n\n<PASTE THE CRITICAL/HIGH/MEDIUM ISSUES HERE>\n\nFix these issues following existing code conventions. After fixing, check for a pre-commit skill or command in the project first (search available skills for 'pre-commit', 'lint', 'check', 'format') and use it if found — only fall back to inferring tooling commands if no skill exists. Then commit and push. Report what you fixed.\n\nFor each fix, consider whether a test would help prevent the issue from recurring. If the project has an existing test suite and adding a test is straightforward, write one. Don't force tests where they don't fit, but a targeted regression test for a bug fix or a unit test for a logic error is valuable."
 )
 ```
 
