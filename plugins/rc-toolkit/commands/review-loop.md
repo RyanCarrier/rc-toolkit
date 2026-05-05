@@ -2,13 +2,18 @@
 description: Iteratively fix review issues and re-review until only LOW severity remains
 model: opus
 context: none
+allowed-tools: AskUserQuestion, Agent, Skill, Bash(git *)
+argument-hint: [include low]
 ---
 
 # Review Loop
 
-Run a multi-PR review, fix issues, and repeat until only LOW severity issues (or none) remain.
+You are a **loop controller**, not a reporter. Your turn does not end until actionable issues = 0 or the user explicitly stops you. After every review, you count severities and — in the same response — either spawn a fix agent or declare the PR clean. **A response that contains a severity count but no subsequent tool call is a bug.**
 
-**You are an orchestrator running a loop. You MUST NOT stop after the first review. After every review and validation pass, you MUST evaluate the results and either continue fixing or explicitly declare the PR clean. Completing a single review+validate cycle is NOT the end of your job — it is only the input to your loop decision.**
+## Severity Threshold
+
+- **Default:** TOTAL = CRITICAL + HIGH + MEDIUM. LOW issues are acceptable and ignored.
+- **If the user included "low" in their arguments** (check if `$ARGUMENTS` contains "low"): TOTAL = CRITICAL + HIGH + MEDIUM + LOW. All severities must be fixed.
 
 ## Instructions
 
@@ -24,21 +29,21 @@ Skill(skill="rc-toolkit:multi-pr-review")
 
 Either way, you must have a set of validated review results before moving to Step 2.
 
-### Step 2: Evaluate Results — THIS IS MANDATORY AFTER EVERY REVIEW
+### Step 2: Evaluate Results and Act — MANDATORY AFTER EVERY REVIEW
 
-**WARNING: The validate-review step inside multi-pr-review produces a "Recommendations" section. That is NOT your loop decision. You MUST still perform the severity count below before deciding whether to stop or continue. Do not relay the review output and stop — that is a bug.**
+After the review skill returns, perform this mechanical check and **immediately act on the result in the same response** — do not end your turn between the count and the action:
 
-After the review skill returns, you MUST perform this mechanical check:
+1. **Count issues by severity.** Go through the validated results and count each severity level separately.
+2. **Write the counts explicitly:** `CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N → TOTAL: N` (compute TOTAL per the severity threshold above)
+3. **In the same response, take exactly one of these actions:**
+   - If TOTAL = 0 → output "LOOP COMPLETE: PR is clean" and stop.
+   - If TOTAL > 0 → **immediately call the Agent tool** (Step 3 below) in this same response. Do not end your turn. Do not ask the user. Do not summarize what you plan to do next. The Agent tool call must appear in the same response as the severity count.
 
-1. **Count issues by severity.** Go through the validated results and count the number of CRITICAL, HIGH, and MEDIUM issues separately.
-2. **Write the counts explicitly** in your response: `CRITICAL: N, HIGH: N, MEDIUM: N`
-3. **Apply the rule:**
-   - If CRITICAL + HIGH + MEDIUM = 0 → report that the PR is clean and stop. **This is the ONLY condition that allows you to stop.**
-   - If CRITICAL + HIGH + MEDIUM > 0 → you MUST proceed to Step 3. **This includes cases where only MEDIUM issues remain. MEDIUM is not acceptable — only LOW is acceptable.**
+**The only valid response after a non-zero count is a tool call.** If you find yourself writing a message to the user about what issues exist without simultaneously spawning the fix agent, you are bugging out. The count and the Agent call are one atomic action.
 
 ### Step 3: Fix Issues
 
-Use the **Agent tool** to spawn a subagent that **only** fixes the issues, runs pre-commit checks, commits, and pushes. Do NOT have the subagent run the review — that happens in Step 4.
+Your Step 2 response MUST include this Agent tool call when TOTAL > 0. This is not a separate step you "proceed to" — it is part of the same response as your severity count.
 
 ```
 Agent(
@@ -47,7 +52,7 @@ Agent(
 )
 ```
 
-Pass the specific issues from Step 2 into the subagent prompt.
+Pass the specific issues into the subagent prompt.
 
 ### Step 4: Re-Review
 
@@ -59,17 +64,17 @@ Skill(skill="rc-toolkit:multi-pr-review")
 
 This keeps the review results in the orchestrator's context where they can be evaluated for the loop decision.
 
-### Step 5: Loop Check — MANDATORY
+### Step 5: Loop Check — SAME RULES AS STEP 2
 
-**This is the same mechanical check as Step 2. Do not skip it.**
+Track the number of fix+review iterations completed so far. Maintain an **iteration budget** that starts at **3**.
 
-Track the number of fix+review iterations completed so far. Maintain an **iteration budget** that starts at **3**. The budget can be extended by the user (see below).
+Perform the same atomic count-then-act as Step 2:
 
-1. **Count issues by severity** from the new validated results: `CRITICAL: N, HIGH: N, MEDIUM: N`
-2. **Apply the rule:**
-   - If CRITICAL + HIGH + MEDIUM = 0 → report success and stop.
-   - If CRITICAL + HIGH + MEDIUM > 0 **and** iterations completed < budget → go back to Step 3 with the new issues. **MEDIUM counts — it is NOT acceptable.**
-   - If CRITICAL + HIGH + MEDIUM > 0 **and** iterations completed ≥ budget → **prompt the user** using `AskUserQuestion` (see below). Do NOT silently stop.
+1. **Count issues:** `CRITICAL: N, HIGH: N, MEDIUM: N → TOTAL: N` (iteration M of budget)
+2. **In the same response, take exactly one action:**
+   - If TOTAL = 0 → output "LOOP COMPLETE: PR is clean after M iterations" and stop.
+   - If TOTAL > 0 **and** iterations < budget → **immediately call the Agent tool** (Step 3) in this same response. No turn break. No summary. Just the tool call.
+   - If TOTAL > 0 **and** iterations ≥ budget → **immediately call AskUserQuestion** in this same response (see below). Do NOT output a summary and stop.
 
 #### Iteration-budget exhausted: ask the user
 
@@ -92,11 +97,11 @@ If the budget is exhausted again later, prompt again with the same three options
 
 ## Rules
 
-- **Keep looping.** Your job is not done until CRITICAL + HIGH + MEDIUM = 0, or the user explicitly chooses to stop at the iteration-budget prompt. A single review+validate pass is never sufficient on its own — you must always perform the severity count and decide.
-- **MEDIUM is not acceptable.** Only LOW may remain. If MEDIUM issues exist, you must loop.
-- **The validate-review output is input to your decision, not the decision itself.** Even if validate-review says "needs-fixes" or "merge-ready", you must still count severities and apply the rule mechanically. Do not stop just because the review skill finished producing output.
+- **Every evaluation (Step 2 / Step 5) must end with a tool call, never with text.** The severity count and the subsequent action (Agent call, AskUserQuestion, or "LOOP COMPLETE" declaration) are one atomic response. If your response after a review contains only text and no tool call, you have stopped incorrectly.
+- **MEDIUM is not acceptable by default.** TOTAL = CRITICAL + HIGH + MEDIUM (or + LOW if user requested it). If TOTAL > 0, you loop.
+- **The validate-review "Recommendations" section is informational only.** Ignore "merge-ready" / "needs-fixes" labels. Only the mechanical severity count determines your action.
 - **Reuse an existing review** if one is already present in the conversation — do not waste a review run.
-- Default iteration budget is 3. When exhausted with issues remaining, prompt the user via `AskUserQuestion` (continue 1 more / continue 3 more / stop). Never silently stop at the budget.
-- Each iteration should make measurable progress — if an iteration fixes zero issues, stop and report the stall to the user (do not consume more of the budget on a stalled loop).
-- Do not fix LOW severity issues. They are acceptable.
-- **Use subagents** for the fix work (Step 3) to keep file edits and diffs out of the orchestrator context. Run the review (Step 4) directly from the orchestrator so the results are available for the loop decision without nested subagent depth.
+- Default iteration budget is 3. When exhausted, use `AskUserQuestion` — never silently stop.
+- If an iteration fixes zero issues, stop and report the stall (do not consume more budget).
+- Do not fix LOW severity issues unless the user requested it via arguments.
+- **Use subagents** for fixes (Step 3). Run reviews (Step 4) directly from the orchestrator.
