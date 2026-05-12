@@ -21,10 +21,13 @@ You are a **loop controller**, not a reporter. Your turn does not end until acti
 
 If a multi-PR review has already been completed in this conversation — for example, the user ran `/multi-pr-review` immediately before invoking this command, or pasted validated review output into the prompt — **reuse those existing validated results as your starting state and skip running a fresh review.** State explicitly that you are reusing the existing review, then proceed to Step 2.
 
-Otherwise, run the multi-PR review to get the current state:
+Otherwise, run the multi-PR review via a subagent so the results return to you (the orchestrator) for evaluation. **Do NOT use Skill() directly** — Skill() takes over the current turn and prevents you from continuing with Step 2 in the same response.
 
 ```
-Skill(skill="rc-toolkit:multi-pr-review")
+Agent(
+  description="Multi-PR review",
+  prompt="Run a full multi-PR review with validation. Invoke Skill(skill='rc-toolkit:multi-pr-review'). Return the complete validated results exactly as produced — include every issue with its severity, file, line, and description."
+)
 ```
 
 Either way, you must have a set of validated review results before moving to Step 2.
@@ -56,10 +59,13 @@ Pass the specific issues into the subagent prompt.
 
 ### Step 4: Re-Review
 
-After the fix subagent completes, run the multi-PR review directly from the orchestrator:
+After the fix subagent completes, run the multi-PR review via a subagent so the results return to you for evaluation. **Do NOT use Skill() directly** — Skill() takes over the current turn and prevents you from continuing with Step 5.
 
 ```
-Skill(skill="rc-toolkit:multi-pr-review")
+Agent(
+  description="Multi-PR re-review",
+  prompt="Run a full multi-PR review with validation. Invoke Skill(skill='rc-toolkit:multi-pr-review'). Return the complete validated results exactly as produced — include every issue with its severity, file, line, and description."
+)
 ```
 
 This keeps the review results in the orchestrator's context where they can be evaluated for the loop decision.
