@@ -1,6 +1,6 @@
 ---
 name: multi-pr-review
-description: Use this agent when the user wants a multi-agent code review of their PR or branch changes. Runs three independent reviews in parallel (Claude PR review, Gemini review, and Codex review) and consolidates findings into a unified report. Examples:
+description: Use this agent when the user wants a multi-agent code review of their PR or branch changes. Runs three independent reviews in parallel (Claude PR review, Antigravity review, and Codex review) and consolidates findings into a unified report. Examples:
 
   <example>
   Context: User has a PR ready and wants thorough review from multiple AI perspectives
@@ -14,7 +14,7 @@ description: Use this agent when the user wants a multi-agent code review of the
   <example>
   Context: User wants to validate code before merging
   user: "Give me a full review from all available reviewers"
-  assistant: "I'll launch the multi-pr-review agent to get opinions from Claude, Gemini, and Codex."
+  assistant: "I'll launch the multi-pr-review agent to get opinions from Claude, Antigravity, and Codex."
   <commentary>
   User wants all available review perspectives, trigger multi-pr-review agent.
   </commentary>

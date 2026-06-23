@@ -14,16 +14,16 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:handle-issue` | Fetch a GitHub issue by number and plan the fix |
 | `/rc-toolkit:create-issue` | Draft and open a new GitHub issue in the current repo |
 | `/rc-toolkit:squash-merge` | Squash-merge current PR and delete branch (worktree-safe) |
-| `/rc-toolkit:gemini-review-pr` | Run Gemini's code-review extension on current branch |
+| `/rc-toolkit:agy-review-pr` | Run an Antigravity (agy) code review on current branch |
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
-| `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Gemini + Codex) |
+| `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Antigravity + Codex) |
 
 ## Agents
 
 | Agent | Description |
 |-------|-------------|
-| `multi-pr-review` | Multi-agent PR review — runs Claude, Gemini, and Codex reviews in parallel, then consolidates findings |
+| `multi-pr-review` | Multi-agent PR review — runs Claude, Antigravity, and Codex reviews in parallel, then consolidates findings |
 
 ## Skills
 
@@ -34,9 +34,10 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 ## Prerequisites
 
 - [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `handle-copilot-review`
-- [Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli) (`gemini`) — required by `gemini-review-pr`
-  - Plus the code-review extension: `gemini extensions install https://github.com/gemini-cli-extensions/code-review`
-  - `GEMINI_API_KEY` environment variable set
+- [Antigravity CLI](https://antigravity.google/) (`agy`) — required by `agy-review-pr` (Google's successor to the Gemini CLI)
+  - Install: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
+  - Authenticate by running `agy` once (Google sign-in)
+  - Plus the `code-review` plugin, which provides `/code-review:pr-code-review`: `agy plugin install code-review`
 - [Codex CLI](https://www.npmjs.com/package/@openai/codex) (`codex`) — required by `codex-review-local`, `codex-review-pr`
   - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
 - [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `multi-pr-review` agent

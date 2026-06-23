@@ -42,7 +42,7 @@ If the diff is empty, tell the user there are no changes to review and stop.
 
 Check `$ARGUMENTS` for flags:
 
-- **`single`** — Use a single focused Claude review per section instead of the full multi-provider review (Claude + Gemini + Codex). This is faster and spawns fewer subagents.
+- **`single`** — Use a single focused Claude review per section instead of the full multi-provider review (Claude + Antigravity + Codex). This is faster and spawns fewer subagents.
 - **`sections: "..."`** — Manual section override (see Step 3b).
 
 Default (no flags): full multi-provider review per section.
@@ -126,10 +126,10 @@ Agent(
   prompt='Review ONLY these files: <FILE_LIST>. Run: Skill(skill=\"rc-toolkit:codex-review-pr\"). Focus exclusively on the listed files. Return the complete review output.'
 )
 
-### Review 3 — Gemini Review
+### Review 3 — Antigravity Review
 Agent(
-  description='Gemini review: [Section Name]',
-  prompt='Review ONLY these files: <FILE_LIST>. Run: Skill(skill=\"rc-toolkit:gemini-review-pr\"). Focus exclusively on the listed files. Return the complete review output.'
+  description='Antigravity review: [Section Name]',
+  prompt='Review ONLY these files: <FILE_LIST>. Run: Skill(skill=\"rc-toolkit:agy-review-pr\"). Focus exclusively on the listed files. Return the complete review output.'
 )
 
 After all three return, consolidate their results:

@@ -1,5 +1,5 @@
 ---
-description: Run a multi-agent PR review (Claude + Gemini + Codex)
+description: Run a multi-agent PR review (Claude + Antigravity + Codex)
 model: sonnet
 context: none
 ---
@@ -51,12 +51,12 @@ Agent(
 )
 ```
 
-### Subagent 3 — Gemini Review
+### Subagent 3 — Antigravity Review
 
 ```
 Agent(
-  description="Gemini PR review",
-  prompt="You are running a Google Gemini PR code review. Invoke the review by calling: Skill(skill='rc-toolkit:gemini-review-pr'). Return the complete review output exactly as produced. Do not add your own analysis."
+  description="Antigravity PR review",
+  prompt="You are running a Google Antigravity (agy) PR code review. Invoke the review by calling: Skill(skill='rc-toolkit:agy-review-pr'). Return the complete review output exactly as produced. Do not add your own analysis."
 )
 ```
 
