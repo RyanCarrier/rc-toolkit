@@ -2,7 +2,7 @@
 description: Split a PR into logical sections and review each independently with focused subagents
 model: opus
 context: none
-allowed-tools: Agent, Skill, Bash(git *)
+allowed-tools: Agent, Skill, Bash(git *), Bash(gh pr view:*)
 argument-hint: [single] [sections: "area1:file1,file2 | area2:file3,file4"]
 ---
 
@@ -12,10 +12,10 @@ You are an orchestrator that splits a PR into logical sections and reviews each 
 
 ## Step 1: Detect Base Branch and Get Diff
 
-Run these commands to determine the base branch, current branch, and full diff:
+Run these commands to determine the base branch, current branch, and full diff. Prefer the PR's **actual base branch** so PRs stacked on a non-`main` branch compare correctly; fall back to `main`/`master` when no PR exists yet:
 
 ```bash
-git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master)
+gh pr view --json baseRefName -q .baseRefName 2>/dev/null || (git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master))
 ```
 
 ```bash

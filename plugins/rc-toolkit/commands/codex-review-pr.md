@@ -1,13 +1,13 @@
 ---
-description: Run a Codex code review on the current branch against main
+description: Run a Codex code review on the current branch against its base branch
 model: haiku
 context: none
-allowed-tools: Bash(mkdir:*), Bash(codex:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git log:*), Read
+allowed-tools: Bash(mkdir:*), Bash(codex:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git log:*), Bash(gh pr view:*), Read
 ---
 
 # Codex Review (PR)
 
-Runs OpenAI Codex's built-in code review on the current branch compared to the base branch (main/master).
+Runs OpenAI Codex's built-in code review on the current branch compared to the PR's base branch (falling back to main/master when no PR exists).
 
 **Prerequisite:** `codex` CLI installed (`npm install -g @openai/codex`) and authenticated (`codex login`).
 
@@ -25,13 +25,13 @@ Runs OpenAI Codex's built-in code review on the current branch compared to the b
 
 ### Step 1: Detect Base Branch
 
-Determine the base branch by checking which exists:
+Determine the branch this PR targets. Prefer the PR's **actual base branch** (so PRs stacked on a non-`main` branch compare correctly); fall back to `main`/`master` when no PR exists yet:
 
 ```bash
-git rev-parse --verify origin/main 2>/dev/null && echo "main" || git rev-parse --verify origin/master 2>/dev/null && echo "master"
+gh pr view --json baseRefName -q .baseRefName 2>/dev/null || (git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master))
 ```
 
-Use whichever branch exists (`main` preferred over `master`). If neither exists, tell the user and stop.
+This prints the PR's base branch when a PR exists for the current branch, otherwise `main` (preferred) or `master`. If it prints nothing, tell the user no base branch could be determined and stop.
 
 If the current branch IS the base branch, tell the user to switch to a feature branch first and stop.
 

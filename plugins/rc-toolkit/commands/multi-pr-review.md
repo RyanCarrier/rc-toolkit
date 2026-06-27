@@ -10,10 +10,10 @@ You are a consolidator. Launch three independent review subagents in parallel, c
 
 ## Step 1: Detect Base Branch
 
-Run these to determine the base branch and current branch:
+Determine the branch this PR targets. Prefer the PR's **actual base branch** so PRs stacked on a non-`main` branch compare correctly; fall back to `main`/`master` when no PR exists yet:
 
 ```bash
-git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master)
+gh pr view --json baseRefName -q .baseRefName 2>/dev/null || (git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && echo main || (git rev-parse --verify --quiet origin/master >/dev/null 2>&1 && echo master))
 ```
 
 ```bash
@@ -22,7 +22,7 @@ git branch --show-current
 
 If the current branch IS the base branch, tell the user and stop.
 
-Store the detected base branch name — you will pass it to each subagent.
+Store the detected base branch name — you will pass it to each subagent. (The Antigravity reviewer reviews the GitHub PR diff directly, so it already uses the PR's base branch; the Codex reviewer re-detects the same way. The base branch you pass matters most for the Claude review path and the final report.)
 
 ## Step 2: Launch Three Review Subagents
 
