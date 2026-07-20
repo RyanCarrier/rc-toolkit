@@ -10,7 +10,8 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:quick-review` | Brief pre-commit code review (staged + unstaged) |
 | `/rc-toolkit:local-review` | Thorough review of all unpushed changes |
 | `/rc-toolkit:get-ci-failures` | Analyze the latest failing GitHub Actions run |
-| `/rc-toolkit:handle-copilot-review` | Fetch and triage Copilot's PR review |
+| `/rc-toolkit:get-copilot-review` | Fetch the most recent Copilot review on the current PR and validate its findings |
+| `/rc-toolkit:handle-copilot-review` | Fetch the latest Copilot review, validate it, and fix the real issues |
 | `/rc-toolkit:handle-issue` | Fetch a GitHub issue by number and plan the fix |
 | `/rc-toolkit:create-issue` | Draft and open a new GitHub issue in the current repo |
 | `/rc-toolkit:squash-merge` | Squash-merge current PR and delete branch (worktree-safe) |
@@ -18,12 +19,20 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
 | `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Antigravity + Codex) |
+| `/rc-toolkit:breakdown-review` | Split a PR into logical sections and review each independently |
+| `/rc-toolkit:validate-review` | Filter false positives out of an existing review's findings |
+| `/rc-toolkit:plan-fixes` | Build a consolidated plan of attack for validated review issues |
+| `/rc-toolkit:adversarial-plan-review` | Attack a fix plan for wrong fixes and side effects before implementing |
+| `/rc-toolkit:fix-rereview` | Fix review issues, run pre-commit checks, commit, push, re-review |
+| `/rc-toolkit:review-loop` | Full loop: review → plan → critique → implement → re-review until clean |
+| `/rc-toolkit:ci-loop` | Wait for CI, fix failures, and retry until green or blocked |
 
 ## Agents
 
 | Agent | Description |
 |-------|-------------|
 | `multi-pr-review` | Multi-agent PR review — runs Claude, Antigravity, and Codex reviews in parallel, then consolidates findings |
+| `breakdown-review` | Splits a PR into logical sections and reviews each with a focused subagent |
 
 ## Skills
 
@@ -33,7 +42,7 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 
 ## Prerequisites
 
-- [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `handle-copilot-review`
+- [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `get-copilot-review`
 - [Antigravity CLI](https://antigravity.google/) (`agy`) — required by `agy-review-pr` (Google's successor to the Gemini CLI)
   - Install: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
   - Authenticate by running `agy` once (Google sign-in)

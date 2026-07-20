@@ -1,72 +1,50 @@
 ---
-description: Fetch latest Copilot PR review, evaluate issue importance, and prepare to address them
+description: Fetch the latest Copilot PR review, validate it, and fix the real issues
 model: opus
-allowed-tools: Bash(gh pr:*), Bash(gh api:*), Bash(git rev-parse:*), Read
 ---
 
 # Handle Copilot PR Review
 
-Fetch the most recent GitHub Copilot review on the current PR, evaluate each issue by importance, and prepare to address them.
+Fetch and validate the most recent Copilot review (in one step, via `get-copilot-review`), then fix the findings that survive validation.
 
-## Current State
-
-**Current branch:**
-!`git rev-parse --abbrev-ref HEAD`
+Copilot reviews carry a high false-positive rate — it reasons from diff context and routinely flags concerns the surrounding code already handles. `get-copilot-review` already runs the validation pass that filters those out; this command consumes the result and acts on it.
 
 ## Instructions
 
-1. **Fetch the PR number** for the current branch using `gh pr view --json number`
+### Step 1: Fetch and Validate the Review
 
-2. **Get Copilot's most recent review** using the GitHub API:
+Run the fetch through a subagent so the results return to you for evaluation. `get-copilot-review` fetches the latest Copilot review **and validates it** in the same step, so what returns is already a filtered issue set — you do not run a separate validation pass. **Do NOT call `Skill()` directly** — it takes over the turn and prevents you from continuing to Step 2 in the same response.
 
-   First, get the most recent copilot review ID and body (sorted by submitted_at, take last):
+```
+Agent(
+  description="Get and validate Copilot review",
+  prompt="Fetch and validate the most recent GitHub Copilot review on the current PR. Invoke Skill(skill='rc-toolkit:get-copilot-review'). Return the complete validated report exactly as produced — the VALID issues by severity and the INVALID ones with dismissal reasons. Do not add your own analysis."
+)
+```
 
-   ```
-   gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --jq '[.[] | select(.user.login | contains("copilot"))] | sort_by(.submitted_at) | last | {id, body, submitted_at}'
-   ```
+If the subagent reports no PR, no Copilot review, or no issues, say so and stop.
 
-   Then use that review ID to get only the comments from that specific review:
+### Step 2: Report and Fix
 
-   ```
-   gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments --jq '.[] | {path, position, body}'
-   ```
+Report the validation outcome first: how many findings Copilot raised, how many survived, and what was dismissed with the reason.
 
-   Note: The review body contains the overview/summary, while the review comments contain inline code feedback.
+Then fix every **CRITICAL, HIGH, and MEDIUM** issue that survived validation. Skip LOW unless the user asks for it, and skip everything the validator marked INVALID.
 
-3. **For each issue found**, evaluate and categorize:
+For each fix:
+- Read the surrounding code before changing it
+- Follow existing conventions in the file
+- Do not refactor adjacent code or bundle in unrelated improvements
+- Add a regression test where the project has a test suite and a targeted test fits
 
-   **Critical** - Must fix before merge:
+If a surviving issue turns out to be wrong once you are in the code, say so and skip it rather than implementing a change you do not believe in — the validator reads code too, but you are closer to it.
 
-   - Bugs that will cause runtime errors
-   - Security vulnerabilities
-   - Data loss risks
+### Step 3: Summarize
 
-   **Important** - Should fix:
+Report what you fixed, what you skipped and why, and anything left for the user to decide. Do not commit or push unless the user asks — use `/rc-toolkit:commit-push` for that.
 
-   - Logic errors that could cause incorrect behavior
-   - Missing error handling for likely scenarios
-   - Performance issues in hot paths
+## Rules
 
-   **Minor** - Nice to have:
-
-   - Code style suggestions
-   - Minor optimizations
-   - Documentation improvements
-
-   **Ignore** - Not applicable:
-
-   - False positives
-   - Already addressed
-   - Disagreements on style preference
-
-4. **Output a prioritized action plan**:
-
-   - List issues by priority (Critical > Important > Minor)
-   - For each issue: file path, line, brief description, and suggested fix
-   - Skip issues categorized as "Ignore" but mention them briefly
-
-5. **Read the relevant files** to understand the context around each issue
-
-6. **Prepare to implement fixes** - summarize what changes need to be made
-
-Keep the evaluation practical. Focus on issues that matter for code correctness and maintainability.
+- **Latest review only** — `/rc-toolkit:get-copilot-review` enforces this; do not merge in findings from earlier Copilot runs.
+- **Fetch already includes validation** — `get-copilot-review` validates as its final step, so do not run a second validation pass. Just consume its VALID/INVALID split.
+- **Never fix a finding that failed validation.** The validator read the code and explained the dismissal. Re-litigating it wastes a change and often makes correct code worse.
+- **Use a subagent for the fetch** (Step 1) so its validated results return to you for the fix decision.
