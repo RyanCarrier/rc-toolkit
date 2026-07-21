@@ -2,7 +2,7 @@
 description: Fetch failing jobs, test errors, and stack traces from the most recent failed GitHub Actions run
 model: sonnet
 context: none
-allowed-tools: Bash(gh run *), Bash(gh run:*), Bash(gh run list:*), Bash(gh api:*), Bash(git branch:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(rm:*), Bash(cat:*), Bash(unzip:*), Bash(tree:*), Bash(cd tmp:*), Read
+allowed-tools: Bash(gh run:*), Bash(gh api:*), Bash(git branch:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(rm -rf tmp:*), Bash(cat:*), Bash(unzip:*), Bash(tree:*), Bash(cd tmp:*), Read
 ---
 
 # Get CI Failures

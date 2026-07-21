@@ -53,6 +53,17 @@ echo "Squash-merging PR #$PR_NUMBER..."
 gh pr merge "$PR_NUMBER" --squash --delete-branch
 echo "PR #$PR_NUMBER merged and branch $BRANCH_NAME deleted."
 
-echo "Pulling latest $BASE_BRANCH..."
-git pull origin "$BASE_BRANCH"
-echo "Local $BASE_BRANCH updated."
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "$CURRENT_BRANCH" == "$BASE_BRANCH" ]]; then
+  echo "Pulling latest $BASE_BRANCH..."
+  git pull origin "$BASE_BRANCH"
+  echo "Local $BASE_BRANCH updated."
+else
+  echo "Checked-out branch is '$CURRENT_BRANCH', not '$BASE_BRANCH' — updating ref without merging..."
+  if git fetch origin "$BASE_BRANCH:$BASE_BRANCH"; then
+    echo "Local $BASE_BRANCH updated."
+  else
+    echo "Warning: could not fast-forward local $BASE_BRANCH (checked out in another worktree or diverged)."
+    echo "Run 'git pull' from the worktree that has $BASE_BRANCH checked out."
+  fi
+fi

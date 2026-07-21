@@ -94,12 +94,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/squash-merge.sh" <number> <headRefName> <bas
 
 ### Step 6: Report results
 
+**If you were in a worktree, the script just deleted your current directory.** Any further shell command must be prefixed with `cd <main_worktree_path> && ...`, and the report must remind the user to run `cd <main_worktree_path>` themselves — their shell is still sitting in the removed worktree.
+
 Show:
 - Merge result (success/failure)
 - Remote branch deleted
 - Local branch deleted
 - Worktree removed (if applicable)
-- Local base branch updated
+- Local base branch updated (or the script's warning if it could only fetch/skip — relay it)
 - PR URL for verification on GitHub
+- If a worktree was removed: the main worktree path to `cd` into
 
 Do not use any tools besides the ones listed in allowed-tools. Do not read or modify any files.

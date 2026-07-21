@@ -82,16 +82,16 @@ Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill, which it
 
 ### Phase 8: CI Monitoring
 
-Wait for CI to complete and handle failures.
+Delegate CI monitoring to the `rc-toolkit:ci-loop` skill, which polls the latest run, classifies failures as fixable vs external, fixes and pushes, and retries until green or blocked.
 
-1. Monitor CI status: `gh pr checks $(gh pr view --json number -q .number) --watch`
-2. If CI passes, proceed to the summary
-3. If CI fails:
-   a. Fetch failure details — first get the run ID (retry up to 3 times with 10s waits if empty, since CI may not have registered yet): `gh run list --branch $(git branch --show-current) --status failure --limit 1 --json databaseId -q '.[0].databaseId'`, then view the logs using the returned ID as a separate command: `gh run view <run-id> --log-failed`
-   b. Diagnose and fix the failures
-   c. Commit, push, and wait for CI again
-   d. Repeat until CI passes (up to 3 attempts)
-4. If CI still fails after 3 attempts, report the situation to the user with diagnostics
+1. Invoke the loop:
+
+   ```
+   Skill(skill="rc-toolkit:ci-loop")
+   ```
+
+2. Let it run to completion. It owns this phase: polling, failure classification, pre-commit checks, commits, pushes, iteration limits, and stall detection. Do NOT reimplement CI polling or fetch failure logs manually here.
+3. When it reports success or stops on an unfixable blocker, record its final status and diagnostics for the Phase 9 summary.
 
 ### Phase 9: Final Summary
 
