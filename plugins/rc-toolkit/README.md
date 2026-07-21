@@ -47,6 +47,7 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
   - Install: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
   - Authenticate by running `agy` once (Google sign-in)
   - Plus the `code-review` plugin, which provides `/code-review:pr-code-review`: `agy plugin install code-review`
+  - Headless permission allowlist: since agy 1.1.3, headless (`-p`) runs auto-deny any tool not in `permissions.allow` (`~/.gemini/antigravity-cli/settings.json`), aborting the review with `jetski: no output produced...` on stderr. Run the allowlist setup command in `docs/agy-troubleshooting.md` — notably `command(mkdir)` is required because the review flow's first step is a `mkdir ... && gh pr diff` compound command
 - [Codex CLI](https://www.npmjs.com/package/@openai/codex) (`codex`) — required by `codex-review-local`, `codex-review-pr`
   - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
 - [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `multi-pr-review` agent

@@ -44,3 +44,4 @@ If the command produces no stdout response, read `tmp/agy_code_review_error.txt`
 - `code-review` plugin not installed (`agy plugin install code-review`) — this provides the `/code-review:pr-code-review` command
 - Model not available or rate limited
 - Review exceeded print mode's default 5m wait — rerun with a longer `--print-timeout` (e.g. `--print-timeout 15m`)
+- Permission soft-denial (`jetski: no output produced — a tool required the "command" permission...`) — Read `${CLAUDE_PLUGIN_ROOT}/docs/agy-troubleshooting.md` and follow its instructions
