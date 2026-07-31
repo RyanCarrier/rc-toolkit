@@ -26,10 +26,14 @@ Run this exact command using the Bash tool with a 600s timeout. Do NOT change an
 ```bash
 mkdir -p tmp && agy --add-dir "$(pwd)" --model "Gemini 3.1 Pro (High)" -p "/code-review:pr-code-review
 
+SHELL OVERRIDE: Do NOT redirect command output to files. Do not use '>', '>>', or '2>&1' in any run_command call, and do not pipe output into tee. Headless permission checks require an exact-match allow rule for any command containing a redirect, so a redirected command is auto-denied and the whole review aborts with no output. Run 'gh pr diff' plainly and read the diff from the tool result instead of saving it to a file.
+
 OUTPUT OVERRIDE: Do NOT post this review to GitHub. Do NOT call create_pending_pull_request_review, add_comment_to_pending_review, or submit_pending_pull_request_review, and do NOT create any pending review or inline PR comments. Instead, write the complete review (summary plus every finding with file:line and severity) as plain text in your final response so it can be consolidated." 2>tmp/agy_code_review_error.txt
 ```
 
 **Model:** The model MUST be `"Gemini 3.1 Pro (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. Do NOT substitute any other value (e.g. `gemini-3.1-pro-preview`, `gemini-pro`, `Gemini 3.5 Flash`).
+
+**Shell override:** Also intentional, and the single most common cause of a silent empty review. Since agy 1.1.3, headless (`-p`) runs cannot prompt for permissions, and agy enforces **exact-match** verification for any command containing a shell redirect (`>`, `>>`, `2>&1`) — prefix rules like `command(gh pr diff)` do not cover them. The `code-review` plugin's default flow saves the diff with `gh pr diff <N> > scratch/pr<N>.diff`, whose target path varies per run, so no static allow rule can ever match it and the review aborts with exit 0 and empty stdout. Telling agy not to redirect keeps the whole flow inside the prefix-matched allowlist. Do NOT remove it. The `2>tmp/...` at the end of the command is the *outer* shell's redirect, not agy's — it is fine and must stay.
 
 **Output override:** The extra prompt text after `/code-review:pr-code-review` is intentional and must be kept. By default the `pr-code-review` command posts its findings to the GitHub PR as inline review comments. This toolkit needs the review returned as text (it is captured by Step 2 and fed to the multi-/breakdown-review consolidators), so the override tells `agy` to skip the GitHub submission tools and just print the review. Do NOT remove it.
 
