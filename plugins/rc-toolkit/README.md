@@ -1,8 +1,13 @@
 # rc-toolkit
 
-Personal cross-project developer toolkit for Claude Code. Provides code review, CI debugging, and git workflow commands.
+Personal cross-project developer toolkit for Claude Code and OpenAI Codex.
+Provides code review, CI debugging, GitHub, and git workflows.
 
 ## Commands
+
+Native slash commands in Claude Code. Codex reaches the same workflows through
+the `developer-workflows` skill — ask for them by name instead of by slash
+command.
 
 | Command | Description |
 |---------|-------------|
@@ -29,6 +34,9 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 
 ## Agents
 
+Claude Code only. Codex runs the equivalent work inline or through its own
+subagents.
+
 | Agent | Description |
 |-------|-------------|
 | `multi-pr-review` | Multi-agent PR review — runs Claude, Antigravity, and Codex reviews in parallel, then consolidates findings |
@@ -36,9 +44,12 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
 
 ## Skills
 
+Available on both hosts.
+
 | Skill | Description |
 |-------|-------------|
 | `auto-branch` | Fully autonomous feature development — implements, tests, creates PR, reviews, monitors CI, and summarizes |
+| `developer-workflows` | Runs the command workflows above on hosts without native slash commands (Codex). Inert in Claude Code, which uses the commands directly |
 
 ## Prerequisites
 
@@ -52,10 +63,46 @@ Personal cross-project developer toolkit for Claude Code. Provides code review, 
   - Authenticated via `codex login` or `OPENAI_API_KEY` environment variable
 - [pr-review-toolkit](https://github.com/anthropics/claude-plugins-official) plugin — required by `multi-pr-review` agent
   - Install: `claude plugin add pr-review-toolkit --marketplace claude-plugins-official`
+  - Claude Code only. Under Codex this reviewer has no equivalent, so
+    `multi-pr-review` and `breakdown-review` substitute a native review for that
+    leg and label it accordingly — two external reviewers plus one native,
+    rather than the three available in Claude Code
 
 ## Installation
 
-### Option 1: Marketplace (recommended)
+### Codex
+
+The repository root doubles as a Codex marketplace via
+`.agents/plugins/marketplace.json`. Register it and install the plugin:
+
+```bash
+# From a clone (or pass the path to one)
+codex plugin marketplace add .
+
+# Or straight from GitHub
+codex plugin marketplace add RyanCarrier/rc-toolkit
+
+codex plugin add rc-toolkit@rc-toolkit
+```
+
+Start a new Codex session after installing so its skills are loaded.
+
+Codex exposes the toolkit through the `developer-workflows` and `auto-branch`
+skills. Invoke them by describing the task naturally (for example, "run a quick
+review") or explicitly with `$developer-workflows` / `$auto-branch`.
+
+The existing `commands/` and `agents/` remain available to Claude Code, which
+uses them directly as `/rc-toolkit:*` slash commands. The `developer-workflows`
+skill adapts those same command definitions at runtime for hosts that have no
+native slash commands, so both hosts share one set of workflow instructions.
+
+`multi-pr-review` and `breakdown-review` delegate one of their three reviewers
+to the Claude Code `pr-review-toolkit` plugin. Under Codex that reviewer has no
+equivalent, so the skill substitutes a native review and labels it accordingly.
+
+### Claude Code
+
+#### Option 1: Marketplace (recommended)
 
 ```bash
 claude plugin marketplace add RyanCarrier/rc-toolkit
@@ -67,13 +114,13 @@ claude plugin install rc-toolkit
 claude plugin install rc-toolkit --scope project
 ```
 
-### Option 2: Plugin directory flag
+#### Option 2: Plugin directory flag
 
 ```bash
 claude --plugin-dir /path/to/rc-toolkit/plugins/rc-toolkit
 ```
 
-### Option 3: Manual (project or global)
+#### Option 3: Manual (project or global)
 
 Add to `.claude/settings.json` (project-level) or `~/.claude/settings.json` (global):
 

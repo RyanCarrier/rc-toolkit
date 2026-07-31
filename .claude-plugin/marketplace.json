@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "rc-toolkit",
-      "description": "Code review, CI debugging, and git workflow commands",
+      "description": "Code review, CI, GitHub, and git workflows",
       "author": {
         "name": "rcarrier"
       },

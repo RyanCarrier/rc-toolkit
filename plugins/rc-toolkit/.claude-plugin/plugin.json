@@ -1,7 +1,7 @@
 {
   "name": "rc-toolkit",
-  "version": "0.14.1",
-  "description": "Personal cross-project developer toolkit with code review, CI, and git workflow commands",
+  "version": "0.15.0",
+  "description": "Cross-project developer workflows for code review, CI, GitHub issues, and git operations",
   "author": {
     "name": "rcarrier"
   }

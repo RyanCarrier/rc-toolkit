@@ -1,0 +1,20 @@
+{
+  "name": "rc-toolkit",
+  "interface": {
+    "displayName": "RC Toolkit"
+  },
+  "plugins": [
+    {
+      "name": "rc-toolkit",
+      "source": {
+        "source": "local",
+        "path": "./plugins/rc-toolkit"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

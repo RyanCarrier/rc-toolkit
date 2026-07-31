@@ -1,0 +1,37 @@
+{
+  "name": "rc-toolkit",
+  "version": "0.15.0",
+  "description": "Cross-project developer workflows for code review, CI, GitHub issues, and git operations",
+  "author": {
+    "name": "rcarrier",
+    "url": "https://github.com/RyanCarrier"
+  },
+  "homepage": "https://github.com/RyanCarrier/rc-toolkit",
+  "repository": "https://github.com/RyanCarrier/rc-toolkit",
+  "keywords": [
+    "code-review",
+    "ci",
+    "github",
+    "git"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RC Toolkit",
+    "shortDescription": "Code review, CI, GitHub, and git workflows",
+    "longDescription": "Reusable developer workflows for reviewing changes, diagnosing and repairing CI, handling GitHub issues, and completing common git and pull-request operations.",
+    "developerName": "rcarrier",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/RyanCarrier/rc-toolkit",
+    "defaultPrompt": [
+      "Run a quick review of my local changes.",
+      "Diagnose the latest CI failure.",
+      "Review this pull request with multiple reviewers."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
