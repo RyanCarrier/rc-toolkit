@@ -64,6 +64,7 @@ Agent(
 
 Once all three subagents return:
 
+0. **Verify each reviewer actually ran, before consolidating anything.** A reviewer whose output begins with `AGY REVIEW FAILED:`, or that returned empty or whitespace-only output, **failed — it did not find zero issues.** Reviewers can abort with a success exit code on permission denials, rate limits, or auth expiry, so a dead reviewer is indistinguishable from a clean one unless checked explicitly. List each failed reviewer under **Failed** with its reason, exclude it from the reviewer count and from cross-reviewer agreement, and never let it contribute a silent "clean" vote. If *every* reviewer failed, report that the review could not be performed — do not report the PR as clean.
 1. **Deduplicate** — merge issues flagged by multiple reviewers into a single entry, noting which reviewers agreed
 2. **Classify severity:**
    - **CRITICAL**: Security vulnerabilities, data loss, system-breaking bugs
@@ -102,7 +103,7 @@ Once all three subagents return:
 [Specific action items if fixes needed]
 ```
 
-If no issues found across all reviewers, state the changes look clean and are ready to merge.
+If no issues were found across all reviewers **that actually ran**, state the changes look clean and are ready to merge. If any reviewer failed, say so in the same breath — "clean per 2 of 3 reviewers, Antigravity failed" is an honest result; "clean" alone is not.
 
 ## Step 5: Validate Results
 
