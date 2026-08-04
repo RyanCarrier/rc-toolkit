@@ -36,9 +36,10 @@ Create a concrete implementation plan.
 
 1. Outline the implementation approach before writing code
 2. Identify specific files to create or modify
-3. Define the test strategy
-4. Consider edge cases and error handling
-5. Begin implementation
+3. For each significant decision, record a brief justification — why this approach over the alternatives — and its blast radius: callers, dependents, and tests affected, verified with actual searches rather than assumption
+4. Define the test strategy
+5. Consider edge cases and error handling
+6. Begin implementation
 
 ### Phase 4: Implement
 
@@ -63,7 +64,7 @@ Run all available validation before creating the PR.
 Push the branch and open a pull request.
 
 1. Push the branch: `git push -u origin $(git branch --show-current)`
-2. Create the PR with `gh pr create` — write a clear title and description summarizing the changes, test plan, and any relevant context
+2. Create the PR with `gh pr create` — write a clear title and description summarizing the changes, the key decisions with their justifications and blast radius from Phase 3, the test plan, and any relevant context
 3. Note the PR number for subsequent steps
 
 ### Phase 7: Comprehensive Review

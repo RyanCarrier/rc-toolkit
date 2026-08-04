@@ -26,10 +26,9 @@ command.
 | `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Antigravity + Codex) |
 | `/rc-toolkit:breakdown-review` | Split a PR into logical sections and review each independently |
 | `/rc-toolkit:validate-review` | Filter false positives out of an existing review's findings |
-| `/rc-toolkit:plan-fixes` | Build a consolidated plan of attack for validated review issues |
-| `/rc-toolkit:adversarial-plan-review` | Attack a fix plan for wrong fixes and side effects before implementing |
+| `/rc-toolkit:plan-fixes` | Build a consolidated fix plan with per-fix justification, blast radius, and won't-fix calls |
 | `/rc-toolkit:fix-rereview` | Fix review issues, run pre-commit checks, commit, push, re-review |
-| `/rc-toolkit:review-loop` | Full loop: review → plan → critique → implement → re-review until clean |
+| `/rc-toolkit:review-loop` | Full loop: review → plan → implement → re-review until clean |
 | `/rc-toolkit:ci-loop` | Wait for CI, fix failures, and retry until green or blocked |
 
 ## Agents

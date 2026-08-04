@@ -1,6 +1,6 @@
 ---
 name: developer-workflows
-description: This skill should be used on hosts without native rc-toolkit slash commands (primarily Codex) when the user asks to "quick review", "review local changes", "run a multi PR review", "break down this review", "validate review findings", "plan review fixes", "review the fix plan", "fix and re-review", "run the review loop", "diagnose CI", "run the CI loop", "get the Copilot review", "handle the Copilot review", "review with Codex", "review with Antigravity", "create an issue", "handle issue 123", "commit and push", or "squash merge". In Claude Code the native rc-toolkit slash commands take precedence over this skill.
+description: This skill should be used on hosts without native rc-toolkit slash commands (primarily Codex) when the user asks to "quick review", "review local changes", "run a multi PR review", "break down this review", "validate review findings", "plan review fixes", "fix and re-review", "run the review loop", "diagnose CI", "run the CI loop", "get the Copilot review", "handle the Copilot review", "review with Codex", "review with Antigravity", "create an issue", "handle issue 123", "commit and push", or "squash merge". In Claude Code the native rc-toolkit slash commands take precedence over this skill.
 ---
 
 # Developer Workflows
@@ -36,7 +36,6 @@ Map the user's intent to a file under `../../commands/`:
 | Sectioned PR review | `breakdown-review.md` |
 | Validate reported findings | `validate-review.md` |
 | Plan validated fixes | `plan-fixes.md` |
-| Critique a fix plan | `adversarial-plan-review.md` |
 | Fix findings and review again | `fix-rereview.md` |
 | Iterate review through fixes | `review-loop.md` |
 | Inspect the latest failed CI run | `get-ci-failures.md` |
