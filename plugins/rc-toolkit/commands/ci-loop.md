@@ -25,7 +25,8 @@ gh run list --branch $(git branch --show-current) --limit 1 --json status,conclu
 - If **no runs exist**, tell the user and stop.
 - If a run is **in progress** or **queued**, go to Step 2.
 - If the most recent run **succeeded**, report success and stop.
-- If the most recent run **failed**, go to Step 3.
+- If the most recent run was **cancelled**, go to Step 3.
+- If the most recent run **failed**, go to Step 4.
 
 ### Step 2: Wait for CI
 
@@ -35,10 +36,36 @@ Poll CI status every 60 seconds until it completes:
 gh run watch <run-id> --exit-status 2>&1 || true
 ```
 
-- If it **passed**, report success and stop.
-- If it **failed**, go to Step 3.
+Then check the conclusion — `gh run watch` exits non-zero for both failures and cancellations:
 
-### Step 3: Fetch Failure Details
+```bash
+gh run view <run-id> --json conclusion
+```
+
+- If it **passed**, report success and stop.
+- If it was **cancelled**, go to Step 3.
+- If it **failed**, go to Step 4.
+
+### Step 3: Triage a Cancelled Run
+
+A cancelled run has two common causes. Determine which one applies before acting:
+
+```bash
+gh run list --branch $(git branch --show-current) --limit 5 --json status,conclusion,databaseId,workflowName,createdAt
+```
+
+**Superseded by a newer run (concurrency cancellation):** A newer run of the same workflow on this branch exists, created at or after the cancellation. The cancelled run's annotations (visible in `gh run view <run-id>`) typically read "Canceling since a higher priority waiting request ... exists". Nothing is wrong — switch to the newer run and go back to Step 1. This does not count as an iteration.
+
+**Cancelled manually:** No newer run of that workflow exists, and/or the annotations show a plain "The run was canceled" message without the concurrency wording. A manual cancel usually means someone saw failures already happening and stopped the run — look for them:
+
+```bash
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.conclusion == "failure") | .name'
+```
+
+- If jobs **failed before the cancellation**, fetch their logs directly from this run with `gh run view <run-id> --log-failed` (do not use get-ci-failures here — it only matches runs whose conclusion is `failure`, so it will skip this cancelled run), then go to Step 5.
+- If **no jobs failed**, the cancellation was a deliberate intervention with nothing broken on record. Report that the run was manually cancelled and stop — do not push or re-trigger over someone's manual cancel.
+
+### Step 4: Fetch Failure Details
 
 Get the failure details using the get-ci-failures command:
 
@@ -46,7 +73,7 @@ Get the failure details using the get-ci-failures command:
 Skill(skill="rc-toolkit:get-ci-failures")
 ```
 
-### Step 4: Evaluate Failures
+### Step 5: Evaluate Failures
 
 Classify each failure:
 
@@ -62,11 +89,11 @@ If all failures are **not fixable**, report them clearly to the user and stop. E
 
 If a mix exists, fix what is fixable and report what is not.
 
-### Step 5: Fix the Issues
+### Step 6: Fix the Issues
 
 Read the relevant source code and apply fixes for each fixable failure. Follow existing code conventions. Do not refactor surrounding code or add unrelated changes.
 
-### Step 6: Run Pre-Commit Checks
+### Step 7: Run Pre-Commit Checks
 
 After all fixes are applied, run pre-commit checks.
 
@@ -82,7 +109,7 @@ After all fixes are applied, run pre-commit checks.
 
 Fix any issues surfaced before proceeding.
 
-### Step 7: Commit and Push
+### Step 8: Commit and Push
 
 Stage only the files changed by the fixes. Commit with a message referencing the CI failure. Push to the current branch.
 
@@ -92,13 +119,14 @@ git commit -m "<descriptive message referencing the CI fix>"
 git push
 ```
 
-### Step 8: Loop
+### Step 9: Loop
 
 Go back to Step 1. The push will trigger a new CI run.
 
 ## Rules
 
-- Maximum **5 iterations** to avoid infinite loops.
+- Maximum **5 iterations** to avoid infinite loops. Switching to a run that superseded a cancelled one (Step 3) does not count as an iteration.
+- Never re-trigger or push over a manually cancelled run that has no failed jobs — treat the cancellation as a deliberate stop signal from a human.
 - If an iteration fixes zero issues or the same failure recurs after a fix attempt, stop and report the stall to the user.
 - Do not attempt to fix failures outside the scope of this branch's changes.
 - Do not modify CI configuration files (workflow YAML, Jenkinsfile, etc.) unless the failure is clearly caused by a change in this branch.
