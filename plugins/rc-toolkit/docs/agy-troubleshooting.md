@@ -23,6 +23,8 @@ agy --add-dir "$(pwd)" -p "Run exactly this and nothing else: echo hello > /tmp/
 
 ## Permission soft-denial (`jetski: no output produced`)
 
+**Primary fix (since the NO SHELL COMMANDS prompt):** the review command tells `agy` not to run shell commands at all and to gather context through its file-reading tools, which sidesteps this whole failure class — an agentic model invents novel commands (some that *write* files or run `python3`) that no static allowlist can cover, so forbidding shell use is more robust than chasing allow rules. The allowlist below remains as a **safety net** for any read command `agy` still reaches for; the notes here apply when a soft-denial happens anyway.
+
 Since agy 1.1.3, headless (`-p`) runs cannot show permission prompts, so any tool call not covered by `permissions.allow` in `~/.gemini/antigravity-cli/settings.json` is auto-denied and the whole review aborts with exit 0 and empty stdout. Every command in a compound chain (`a && b`) must match an allow rule — so `command(mkdir)` is required for a `mkdir ... && gh pr diff` chain even though `gh pr` is allowlisted.
 
 Note that a rule matches on the command's **leading tokens**, so a flag between them breaks the match: `git --no-pager diff` is not covered by `command(git diff)` and needs its own `command(git --no-pager diff)` rule.
