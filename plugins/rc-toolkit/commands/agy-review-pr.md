@@ -24,7 +24,7 @@ Uses the Antigravity CLI (`agy`) and its `code-review` plugin to autonomously ga
 Run this exact command using the Bash tool with a 600s timeout. Do NOT change any flags or arguments:
 
 ```bash
-mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.1 Pro (High)" -p "/code-review:pr-code-review
+mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" -p "/code-review:pr-code-review
 
 DIFF SOURCE: The PR diff has already been fetched to 'tmp/pr.diff' in the workspace. Read that file to get the diff. Do NOT run 'gh pr diff' or otherwise re-fetch it.
 
@@ -37,7 +37,7 @@ NO SPECULATION: Do not report a finding that depends on a fact you cannot verify
 OUTPUT OVERRIDE: Do NOT post this review to GitHub. Do NOT call create_pending_pull_request_review, add_comment_to_pending_review, or submit_pending_pull_request_review, and do NOT create any pending review or inline PR comments. Instead, write the complete review (summary plus every finding with file:line and severity) as plain text in your final response so it can be consolidated." 2>tmp/agy_code_review_error.txt
 ```
 
-**Model:** The model MUST be `"Gemini 3.1 Pro (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. Do NOT substitute any other value (e.g. `gemini-3.1-pro-preview`, `gemini-pro`, `Gemini 3.5 Flash`).
+**Model:** The model MUST be `"Gemini 3.7 Flash (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. The `(High)` suffix selects the highest reasoning effort and must be kept — do NOT drop to `(Medium)`/`(Low)`. Do NOT substitute any other value (e.g. the API id `gemini-3.7-flash-high`, `gemini-flash`, or an older model like `Gemini 3.1 Pro (High)`).
 
 **Diff source:** The outer command fetches the diff itself with `gh pr diff > tmp/pr.diff` and points `agy` at the file. That redirect runs in *your* shell, which permits it — the restriction applies only to commands `agy` runs. This removes the dominant failure by construction rather than relying on `agy` choosing a non-redirecting command every run, and it preserves the base-branch behaviour described above, since `gh pr diff` returns the same GitHub-computed diff the plugin would fetch. If there is no PR for the current branch the chain fails fast with a visible `gh` error, which is the desired outcome — better than `agy` aborting silently.
 
