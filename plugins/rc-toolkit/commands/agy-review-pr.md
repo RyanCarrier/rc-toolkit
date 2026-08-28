@@ -17,7 +17,34 @@ Uses the Antigravity CLI (`agy`) and its `code-review` plugin to autonomously ga
 
 ## Instructions
 
-**CRITICAL:** Your ONLY job is to run the exact Bash command below and output the result. Do NOT skip, modify, or "improve" the command. Do NOT substitute a different model name. Execute it exactly as written.
+**CRITICAL:** Your job is to run the exact Bash commands below and output the result. Do NOT skip, modify, or "improve" them. Do NOT substitute a different model name. Execute them exactly as written. Run the **Step 0 warm-up first**; only run the Step 1 review once the warm-up has passed.
+
+### Step 0: Warm Up agy (Health Check)
+
+`agy` frequently fails on its **first** invocation of a session — cold start, auth-token refresh, or model spin-up — but succeeds on a retry. Spending that first failure on the expensive review request wastes it and can abort the whole review silently (see Step 2: an aborted run returns exit 0 with empty stdout, indistinguishable from a clean review). So first run a cheap "hello world" health check and let it absorb the cold start.
+
+Run this exact command with the Bash tool, setting the tool's **`timeout` to `300000` (5 minutes)**. A trivial prompt returns in seconds, so 5 minutes is a deliberately generous ceiling; if `agy` hangs, the timeout kills it and counts as a failed attempt.
+
+```bash
+mkdir -p tmp && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" -p "Reply with exactly this token and nothing else: AGY_WARMUP_OK" 2>tmp/agy_warmup_error.txt
+```
+
+**Model:** MUST be the same model string as Step 1 (`"Gemini 3.7 Flash (High)"`). Keeping them identical means the warm-up exercises the exact auth + model path the review uses, so a pass is a real signal — and it catches model-unavailable / rate-limit / the non-TTY stdout-drop failure before the expensive call. If you ever change the model in Step 1, change it here too. `--add-dir "$(pwd)"` matches Step 1 and grants `agy` the same workspace trust, so the warm-up runs in the same context the review will. The `2>tmp/...` redirect is the *outer* shell's, not agy's, so it is fine (same as Step 1).
+
+**Evaluate each attempt:**
+
+- **PASS** — stdout contains the token `AGY_WARMUP_OK`. `agy` is healthy. Proceed to Step 1 immediately and do NOT warm up again.
+- **FAIL** — stdout is empty, stdout does not contain `AGY_WARMUP_OK`, or the attempt errored or hit the 5-minute timeout.
+
+**Retry policy:** on FAIL, run the *exact same command again* — up to **3 attempts total**. Stop the moment one attempt PASSES.
+
+**If all 3 attempts FAIL, return early — do NOT run Step 1, and do NOT fabricate a review.** A failed warm-up means the review did not run; it is not "no issues found." Emit exactly this as the **first line** of your output so the parent consolidator (multi-/breakdown-review) can detect it mechanically — it is the same `AGY REVIEW FAILED:` marker described in Step 2:
+
+```
+AGY REVIEW FAILED: agy warm-up health check failed after 3 attempts — <one-line reason from tmp/agy_warmup_error.txt>
+```
+
+Below that line, include the last attempt's stderr (`tmp/agy_warmup_error.txt`) and the relevant common causes listed in Step 2 (not installed / not authenticated / `code-review` plugin missing / model unavailable or rate limited), then stop.
 
 ### Step 1: Run the Antigravity Code Review
 

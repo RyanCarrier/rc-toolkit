@@ -2,6 +2,12 @@
 
 Reference for failures of the `agy-review-pr` command. Read this only when a review run fails.
 
+## First-run cold start (handled by the Step 0 warm-up)
+
+`agy` frequently fails on its **first** invocation of a session (cold start, auth-token refresh, or model spin-up) and then succeeds on a retry. `agy-review-pr.md` absorbs this with a **Step 0 warm-up**: before the real review it runs a trivial `agy --add-dir "$(pwd)" --model "..." -p "Reply with exactly this token and nothing else: AGY_WARMUP_OK"` health check (Bash tool `timeout` = 300000 ms / 5 min per attempt), retrying up to 3 times until stdout contains the token. Only after a pass does Step 1 run, so the expensive review request is no longer the one that eats the cold-start failure.
+
+If all 3 warm-up attempts fail, the command returns early with `AGY REVIEW FAILED: agy warm-up health check failed after 3 attempts — ...` instead of running the review — the same marker the consolidators treat as a dead reviewer. When that happens, the cause is real (not a transient cold start): check the causes below, and the last attempt's stderr in `tmp/agy_warmup_error.txt`. Keep the warm-up model string identical to Step 1's so the health check exercises the same auth + model path.
+
 ## Shell redirects are auto-denied and cannot be allowlisted
 
 **Check this first — it is the most common cause of a silent empty review.**
