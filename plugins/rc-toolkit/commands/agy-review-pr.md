@@ -2,12 +2,20 @@
 description: Run an Antigravity (agy) code review on the current branch
 model: haiku
 context: none
-allowed-tools: Bash(mkdir:*), Bash(agy:*), Read
+allowed-tools: Bash(mkdir:*), Bash(agy:*), Bash(gh pr diff:*), Bash(git diff:*), Read
+argument-hint: [--range from..to] [review instructions]
 ---
 
 # Antigravity (agy) Code Review
 
 Uses the Antigravity CLI (`agy`) and its `code-review` plugin to autonomously gather the PR diff and perform a code review. `agy` is Google's successor to the Gemini CLI.
+
+## Arguments
+
+`$ARGUMENTS` may carry:
+
+- `--range <from>..<to>` — the diff agy reads is `git diff <from>..<to>` instead of the GitHub PR diff, so the review covers only those commits. `review-loop` uses this to re-review just the fix commits of an iteration.
+- Any remaining text is a **review brief**: append it to the `-p` prompt as a final `REVIEW BRIEF: <text>` paragraph, after the OUTPUT OVERRIDE block. Multi-pr-review passes its reviewer brief (and, in delta mode, the per-fix verification instructions) this way.
 
 **Base branch:** The `pr-code-review` command fetches the **GitHub PR diff** (via the `pull_request_read` tools). GitHub computes that diff against the PR's actual base branch, so the review automatically compares against the PR's base — not `main` — even for stacked PRs based on another branch. `--add-dir "$(pwd)"` grants `agy` access to the local repo for additional context.
 
@@ -17,7 +25,7 @@ Uses the Antigravity CLI (`agy`) and its `code-review` plugin to autonomously ga
 
 ## Instructions
 
-**CRITICAL:** Your job is to run the exact Bash commands below and output the result. Do NOT skip, modify, or "improve" them. Do NOT substitute a different model name. Execute them exactly as written. Run the **Step 0 warm-up first**; only run the Step 1 review once the warm-up has passed.
+**CRITICAL:** Your job is to run the exact Bash commands below and output the result. Do NOT skip, modify, or "improve" them. Do NOT substitute a different model name. Execute them exactly as written — the only permitted substitutions are the two named in Step 1 for `--range` and the review brief. Run the **Step 0 warm-up first**; only run the Step 1 review once the warm-up has passed.
 
 ### Step 0: Warm Up agy (Health Check)
 
@@ -48,7 +56,7 @@ Below that line, include the last attempt's stderr (`tmp/agy_warmup_error.txt`) 
 
 ### Step 1: Run the Antigravity Code Review
 
-Run this exact command using the Bash tool with a 600s timeout. Do NOT change any flags or arguments:
+Run this exact command using the Bash tool with a 600s timeout. Do NOT change any flags or arguments. The only permitted substitutions: (1) when `--range <from>..<to>` was given, replace `gh pr diff > tmp/pr.diff` with `git diff <from>..<to> > tmp/pr.diff`; (2) when a review brief was given, append a final paragraph `REVIEW BRIEF: <text>` to the `-p` prompt, after the OUTPUT OVERRIDE paragraph.
 
 ```bash
 mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" -p "/code-review:pr-code-review

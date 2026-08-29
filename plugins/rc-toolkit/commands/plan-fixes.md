@@ -1,30 +1,38 @@
 ---
 description: Build a consolidated plan of attack for fixing validated review issues
 model: opus
-allowed-tools: Read, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git log:*)
+allowed-tools: Read, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(gh pr view:*)
 ---
 
 # Plan Fixes
 
-You are a senior engineer producing a **plan of attack** for a set of validated review issues. You do not write any production code in this command — you produce a plan that another agent will implement exactly as written. There is no separate critique stage; the rigor lives here. Every decision in the plan must carry enough justification and blast-radius evidence that a reader can judge it without re-deriving it.
+You are a senior engineer producing a **plan of attack** for a set of validated review issues. You write no production code here — you produce a plan another agent implements exactly as written. There is no separate critique stage; the rigor lives here. Every decision carries enough justification and blast-radius evidence that a reader can judge it without re-deriving it.
 
 ## Prerequisites
 
-This command expects **validated** review results to be present in the conversation (from `/validate-review`, or `/multi-pr-review` which runs validation as its final step). If no validated results are present, tell the user to run a review first and stop.
+**Validated** review results must be in the conversation (from `/validate-review`, or `/multi-pr-review`, which validates as its final step). If none are present, tell the user to run a review first and stop.
 
-## Step 1: Load the Won't-Fix Ledger
+Plan only issues with disposition **FIX**. If you are handed a DECISION or OUT-OF-SCOPE issue, do not plan it — list it under `## Needs Decision` (with its brief) or `## Out of Scope` and move on.
 
-Read `.claude/review-loop/wont-fix.md` if it exists. Every issue recorded there has already been examined and deliberately rejected in a previous iteration.
+## Step 1: Load the Ledger and Scope
 
-**Drop any incoming issue that matches a ledger entry** (same file and same underlying problem — line numbers drift, so match on substance, not line number). List what you dropped and why, citing the ledger. Do not re-plan a fix for an issue already on the ledger, and do not re-litigate the rejection.
+Read `.claude/review-loop/ledger.md` if it exists (fall back to the legacy `.claude/review-loop/wont-fix.md`). Every entry there has already been dispositioned: `wont-fix` (rejected), `decision` (routed to the human), or `parked` (out of scope). An entry marked `queued as FIX` or `parked (pulled)` is the exception — that item is back in the loop; plan it.
 
-If the ledger does not exist, treat it as empty.
+**Drop any incoming issue that matches any other ledger entry** — same file and same underlying problem; line numbers drift, so match on substance. List what you dropped and why, citing the entry. Do not re-plan or re-litigate it.
 
-## Step 2: Read the Code for Every Remaining Issue
+Read `.claude/review-loop/scope.md` if it exists. Its file list is the boundary of this PR: **a fix is not allowed to edit a file outside it.** New or updated test files, and the fixtures or helpers a test needs, are always in scope. If the only correct fix needs any other outside file, the issue becomes a `## Needs Decision` entry (scope expansion is the user's call), not a fix.
 
-For each issue that survived Step 1, read the actual source file and enough surrounding context to understand the real root cause. The review's description of the problem is a starting point, not ground truth — validation confirmed the symptom is real, but the root cause may sit somewhere other than the flagged line.
+If neither file exists, treat the ledger as empty and the scope as `git diff --name-only <base>...HEAD`.
 
-For each issue, also establish its **blast radius** before proposing a fix:
+## Step 2: Cap the Set
+
+Plan at most **5** fixes per iteration. If handed more, keep CRITICAL → HIGH → MEDIUM → LOW order (review order within a severity), plan the first 5, and list the rest under `## Deferred` untouched — the loop carries them into the next iteration. A small, well-understood change set is what keeps this iteration's fixes from becoming the next iteration's findings.
+
+## Step 3: Read the Code for Every Remaining Issue
+
+For each issue, read the source and enough surrounding context to find the real root cause. The review's description is a starting point, not ground truth — validation confirmed the symptom, but the cause may sit elsewhere.
+
+Establish the **blast radius** before proposing anything:
 
 - `Grep` for callers of any function, method, or symbol the fix would change
 - `Grep` for existing tests that exercise the affected code
@@ -32,79 +40,97 @@ For each issue, also establish its **blast radius** before proposing a fix:
 
 A fix proposed without knowing who depends on the code is a guess. Do the searches.
 
-## Step 3: Decide Fix or Won't-Fix
+## Step 4: Decide the Disposition
 
-Not every validated issue deserves a fix. For each issue, make an explicit disposition:
+- **Fix** — worth making, blast radius understood, all edits inside scope. Gets a FIX entry.
+- **Won't fix** — the cure is worse than the disease: the behaviour is intentional, the risk of change exceeds the benefit, or the churn outweighs the value. Goes under `## Won't Fix`. **Near-permanent — earn it.** The loop copies every entry to the ledger and never looks at it again. Justify with file, substance, and concrete evidence.
+- **Needs decision** — reading the code showed the fix depends on intent the code cannot supply. Use it when any of these holds:
+  1. The fix changes user-visible behaviour or policy.
+  2. The code contradicts a doc, ADR, or spec, and either could be right.
+  3. Two reasonable fixes lead to different outcomes.
+  4. The fix touches a public API, an on-disk or wire format, or store-facing copy.
+  5. The fix needs a file outside the scope file list.
 
-- **Fix** — the change is worth making and its blast radius is understood. It gets a FIX entry in the plan.
-- **Won't fix** — the cure is worse than the disease: the behavior is intentional, the risk of change exceeds the benefit, or the churn outweighs the value. It goes under `## Won't Fix`.
+  Goes under `## Needs Decision` with a brief the human can answer in one click: `Question / Options (a) (b) (c) leave as is / Recommendation / Blocks: <FIX-N refs or none>`. Do not pick for them — the loop asks, records the answer in the ledger, and re-queues a fix if the answer needs one.
 
-**Won't-fix is near-permanent — earn it.** The loop controller copies every `## Won't Fix` entry to the ledger, which removes the issue from all future iterations with no further scrutiny. Justify each one thoroughly: name the file, the issue substance, and concrete evidence for why fixing costs more than not fixing. Use it when the fix is genuinely not worth making, not as a way to reduce work.
+## Step 5: Identify Fix Interactions
 
-## Step 4: Identify Fix Interactions
+Look across the whole set before writing per-issue fixes:
 
-Before writing per-issue fixes, look across the whole issue set for interactions:
+- **Same-surface conflicts** — two fixes in one function or file that would collide
+- **Subsumption** — one fix that makes another issue disappear
+- **Shared root cause** — several symptoms from one defect, fixed once
+- **Ordering constraints** — a fix that must land before another to avoid a broken intermediate state
 
-- **Same-surface conflicts** — two issues in the same function or file whose fixes would collide or be applied on top of each other
-- **Subsumption** — one fix that makes another issue disappear entirely
-- **Shared root cause** — several symptoms produced by one underlying defect, which should be fixed once rather than patched N times
-- **Ordering constraints** — a fix that must land before another to avoid an intermediate broken state
+This cross-cutting view is why the plan is one document rather than N per-issue plans.
 
-This cross-cutting view is the main reason the plan is a single document rather than N independent per-issue plans. Do not skip it.
+## Step 6: Write the Plan
 
-## Step 5: Write the Plan
-
-Write the plan to `.claude/review-loop/plan.md`, creating the directory if needed. Use this structure:
+Write to `.claude/review-loop/plan.md`, creating the directory if needed:
 
 ```markdown
 # Fix Plan — Iteration [N]
 
 **Issues planned:** [count]
 **Won't fix:** [count]
-**Dropped (won't-fix ledger):** [count]
+**Needs decision:** [count]
+**Deferred (cap):** [count]
+**Dropped (ledger):** [count]
 
 ## Dropped Issues
-- **file** — [issue] — on ledger since iteration [N]: [rejection reason]
+- **file** — [issue] — ledger: [kind], iteration [N]: [rationale]
 
 ## Fixes
 
 ### FIX-1 — [severity] — file:line
 **Issue:** [what the review flagged]
-**Root cause:** [the actual underlying cause, which may differ from the flagged line]
-**Justification:** [why this issue is worth fixing and why this approach over the alternatives — the decision, defended with evidence]
-**Proposed change:** [concretely what changes — which function, what the new behavior is. Specific enough that another engineer could implement it without re-deriving the design.]
-**Blast radius:** [callers, dependents, tests found by grep — cite the searches. "None found" is a valid answer only if you actually searched.]
-**Test strategy:** [what test proves this fix works and prevents regression, or an explicit reason no test fits]
-**Risk:** [what could go wrong with this change]
+**Root cause:** [the actual cause, which may differ from the flagged line]
+**Justification:** [why this is worth fixing and why this approach — defended with evidence]
+**Proposed change:** [concretely what changes: which function, what the new behaviour is. Specific enough to implement without re-deriving the design.]
+**Files:** [every file this fix edits — all must be in scope]
+**Blast radius:** [callers, dependents, tests found by grep — cite the searches. "None found" is valid only if you searched.]
+**Test strategy:** [the test that proves the fix and prevents regression, or why no test fits]
+**Risk:** [what could go wrong]
 
 ### FIX-2 — ...
 
 ## Won't Fix
-- **file** — [issue substance] — [full rationale: why the fix costs more than the bug — strong enough to justify permanently removing this issue from the loop]
+- **file** — [substance] — [full rationale, strong enough to remove this issue from the loop permanently]
+
+## Needs Decision
+- **file** — [substance] — Question: … · Options: (a) … (b) … (c) leave as is · Recommendation: … · Blocks: …
+
+## Deferred
+- [severity] **file:line** — [substance] (over the per-iteration cap; untouched)
+
+## Out of Scope
+- **file** — [substance] — [reason] (handed in with that disposition; not planned)
 
 ## Interactions & Ordering
-- **Conflicts:** [fixes touching the same surface, and how to sequence them]
-- **Subsumption:** [fixes that make other issues moot]
-- **Shared root cause:** [issues collapsed into a single fix]
-- **Required order:** [ordered list if any fix must precede another, otherwise "independent — any order"]
+- **Conflicts:** …
+- **Subsumption:** …
+- **Shared root cause:** …
+- **Required order:** [ordered list, or "independent — any order"]
 
 ## Open Questions
-[Anything genuinely ambiguous where the right fix depends on intent that isn't recoverable from the code. Empty is fine and expected.]
+[Ambiguities that did not rise to a decision. Empty is fine.]
 ```
 
-**Always emit the `## Won't Fix` heading**, even when there is nothing under it (write "none"). The loop controller reads this section to update the won't-fix ledger — a missing heading is indistinguishable from a parse failure.
+**Always emit every heading**, even when empty (write "none"). The loop controller parses `## Fixes`, `## Won't Fix`, and `## Needs Decision`; a missing heading is indistinguishable from a parse failure.
 
-## Step 6: Report
+## Step 7: Report
 
-Output a short summary to the conversation: how many fixes are planned, how many issues were marked won't-fix, how many were dropped by the ledger, any interactions found, and the plan file path. Do not paste the entire plan back — it is on disk for the implementer to read.
+Output a short summary: fixes planned, won't-fix, needs-decision, deferred, dropped-by-ledger, interactions, and the plan path. Do not paste the plan back — it is on disk for the implementer.
 
 ## Rules
 
-- **Plan, do not implement.** Write no production code in this command. The only file you write is the plan.
-- **Never stage or commit the plan files.** `.claude/review-loop/` is loop scratch state, not part of the change under review.
-- **Blast radius requires evidence.** Every fix entry must cite an actual grep, not an assumption about who calls the code.
-- **Justify decisions, not just changes.** Every fix carries why it is worth making and why this approach; every won't-fix carries why it is not worth making. The implementer and any human reader take the plan on its stated evidence.
-- **Every issue gets exactly one disposition.** Each incoming issue must end up as a FIX entry, a `## Won't Fix` entry, or a ledger-dropped entry under `## Dropped Issues`. An issue that silently vanishes from the plan stays in the loop forever.
-- **One consolidated plan.** Do not emit per-issue plans that ignore each other.
-- **Do not expand scope.** Plan fixes for the flagged issues only. If you notice an unrelated problem while reading, put it under "Open Questions" — do not add it as a fix.
+- **Plan, do not implement.** The plan is the only file you write.
+- **Never stage or commit the plan files.** `.claude/review-loop/` is loop scratch state.
+- **Only FIX issues get FIX entries.** Decisions and out-of-scope items are routed, not planned.
+- **Never edit outside scope.** A fix that needs an outside file is a decision.
+- **At most 5 fixes.** The rest are deferred, not squeezed in.
+- **Blast radius requires evidence.** Cite the grep.
+- **Justify decisions, not just changes.**
+- **Every issue gets exactly one disposition:** FIX, Won't Fix, Needs Decision, Deferred, Out of Scope, or Dropped. An issue that vanishes from the plan stays in the loop forever.
+- **Do not expand scope.** Unrelated problems go under Open Questions, not Fixes.
 - **Concrete over vague.** "Add validation" is not a plan. "Reject empty `name` in `parseConfig` before the map lookup at line 40, returning the existing `ConfigError`" is a plan.

@@ -69,14 +69,14 @@ Push the branch and open a pull request.
 
 ### Phase 7: Comprehensive Review
 
-Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill, which iterates multi-PR review + fix cycles until only LOW severity issues remain (or the iteration budget is exhausted).
+Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill. It runs one full review, then plan → fix → delta re-review cycles until no CRITICAL/HIGH fixable issues remain, the count stops falling, or its iteration/time budget is exhausted. Findings that need a product decision or fall outside the PR's scope are collected, not fixed.
 
 1. Invoke the loop **through a subagent**, so control returns here for Phase 8. In Claude Code, call:
 
    ```
    Agent(
      description="Review loop",
-     prompt="Run the full review-and-fix loop on the current PR. Invoke Skill(skill='rc-toolkit:review-loop') and let it run to completion. If its iteration budget is exhausted with issues still open, do NOT prompt the user — stop and report what remains. Return: total iterations completed, issues found, issues fixed, and every remaining or ledgered issue with the reason it was left."
+     prompt="Run the full review-and-fix loop on the current PR. Invoke Skill(skill='rc-toolkit:review-loop') and let it run to completion. Run in non-interactive mode: do NOT prompt the user at any point — write the report and stop. Return: total iterations completed, issues found, issues fixed, every remaining issue, every pending decision with its brief, and every parked (out-of-scope) item with its reason."
    )
    ```
 
@@ -85,7 +85,7 @@ Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill, which it
    **Do not call `Skill(skill="rc-toolkit:review-loop")` directly here.** Skill() loads the loop's instructions into the current turn, and `review-loop` is written as a terminal controller that ends with "stop" — Phases 8 and 9 would never run. This is the same constraint `review-loop` states for itself: its orchestrator spawns subagents rather than calling `Skill()`, because Skill() takes over the turn.
 
 2. Let the loop run to completion. It handles its own severity counting, fix subagents, re-review, and iteration budget. Do NOT run `multi-pr-review` manually here — `review-loop` owns this phase.
-3. Record the subagent's returned summary (iterations, issues found/fixed, anything left unfixed and why) for the Phase 9 summary. Because the loop runs non-interactively here, a budget exhausted with issues still open comes back as a report rather than a prompt — carry those issues into Phase 9 so the user can decide whether to keep going.
+3. Record the subagent's returned summary (iterations, issues found/fixed, anything left unfixed and why, pending decisions, parked items) for the Phase 9 summary. Because the loop runs non-interactively here, decisions and parked items come back unanswered in the report rather than as prompts — carry them into Phase 9 so the user can answer them and decide whether to keep going.
 4. Proceed to Phase 8.
 
 ### Phase 8: CI Monitoring
