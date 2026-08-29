@@ -49,6 +49,7 @@ Available on both hosts.
 |-------|-------------|
 | `auto-branch` | Fully autonomous feature development — implements, tests, creates PR, reviews, monitors CI, and summarizes |
 | `developer-workflows` | Runs the command workflows above on hosts without native slash commands (Codex). Inert in Claude Code, which uses the commands directly |
+| `wizard` | Generates an interactive bash wizard (from `template.sh`) that walks a human through steps only they can do — dashboards, credentials, CI secrets, one-off migrations. Copied from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT |
 
 ## Prerequisites
 
