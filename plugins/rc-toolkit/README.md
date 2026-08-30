@@ -28,7 +28,7 @@ command.
 | `/rc-toolkit:validate-review` | Filter false positives out of an existing review's findings and give each valid one a disposition: fix, decision for the human, or out of scope |
 | `/rc-toolkit:plan-fixes` | Build a consolidated fix plan (max 5 per pass) with per-fix justification, blast radius, won't-fix and needs-decision calls |
 | `/rc-toolkit:fix-rereview` | Fix review issues, run pre-commit checks, commit, push, re-review |
-| `/rc-toolkit:review-loop` | Full review once, then plan → fix → delta re-review until converged; batches decisions and out-of-scope findings into one question |
+| `/rc-toolkit:review-loop` | Full review once, then plan → fix → delta re-review until converged; batches decisions and out-of-scope findings into one question (design notes: `docs/review-loop-design.md`) |
 | `/rc-toolkit:ci-loop` | Wait for CI, fix failures, and retry until green or blocked |
 
 ## Agents

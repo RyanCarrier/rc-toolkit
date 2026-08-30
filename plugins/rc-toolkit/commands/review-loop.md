@@ -14,7 +14,7 @@ Each iteration runs: **review → triage → count → plan (≤5) → implement
 
 ## Design Rules
 
-These rules are why the loop is shaped the way it is. Do not relax them.
+These rules are why the loop is shaped the way it is. Do not relax them. The incident behind them, a diagnostic checklist, and the contracts between the chained commands are in `${CLAUDE_PLUGIN_ROOT}/docs/review-loop-design.md` — read it before changing this file.
 
 1. **Only the first review is a full review.** LLM reviewers are non-deterministic: a fresh pass over a large diff always finds something, whether or not the last fixes were good. Every re-review covers only the commits the previous iteration made, verifies each planned fix, and looks for regressions. It never re-reads unchanged code.
 2. **Only mechanical, in-scope fixes are fixed.** A finding that needs a product or design call is a **DECISION** for the user. A finding outside the PR's stated intent is **PARKED**. Neither is fixed by the loop, and neither counts toward the total.
