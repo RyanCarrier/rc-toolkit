@@ -23,12 +23,12 @@ command.
 | `/rc-toolkit:agy-review-pr` | Run an Antigravity (agy) code review on current branch |
 | `/rc-toolkit:codex-review-local` | Run Codex code review on uncommitted local changes |
 | `/rc-toolkit:codex-review-pr` | Run Codex code review on current branch vs main |
-| `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Antigravity + Codex) |
+| `/rc-toolkit:multi-pr-review` | Multi-agent PR review (Claude + Antigravity + Codex); `--range` reviews only a commit range |
 | `/rc-toolkit:breakdown-review` | Split a PR into logical sections and review each independently |
-| `/rc-toolkit:validate-review` | Filter false positives out of an existing review's findings |
-| `/rc-toolkit:plan-fixes` | Build a consolidated fix plan with per-fix justification, blast radius, and won't-fix calls |
+| `/rc-toolkit:validate-review` | Filter false positives out of an existing review's findings and give each valid one a disposition: fix, decision for the human, or out of scope |
+| `/rc-toolkit:plan-fixes` | Build a consolidated fix plan (max 5 per pass) with per-fix justification, blast radius, won't-fix and needs-decision calls |
 | `/rc-toolkit:fix-rereview` | Fix review issues, run pre-commit checks, commit, push, re-review |
-| `/rc-toolkit:review-loop` | Full loop: review → plan → implement → re-review until clean |
+| `/rc-toolkit:review-loop` | Full review once, then plan → fix → delta re-review until converged; batches decisions and out-of-scope findings into one question (design notes: `docs/review-loop-design.md`) |
 | `/rc-toolkit:ci-loop` | Wait for CI, fix failures, and retry until green or blocked |
 
 ## Agents
@@ -49,6 +49,7 @@ Available on both hosts.
 |-------|-------------|
 | `auto-branch` | Fully autonomous feature development — implements, tests, creates PR, reviews, monitors CI, and summarizes |
 | `developer-workflows` | Runs the command workflows above on hosts without native slash commands (Codex). Inert in Claude Code, which uses the commands directly |
+| `wizard` | Generates an interactive bash wizard (from `template.sh`) that walks a human through steps only they can do — dashboards, credentials, CI secrets, one-off migrations. Copied from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT |
 
 ## Prerequisites
 

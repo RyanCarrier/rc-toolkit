@@ -2,169 +2,225 @@
 description: Plan and fix review issues in a loop until no actionable issues remain
 model: opus
 context: none
-allowed-tools: AskUserQuestion, Agent, Read, Write, Edit, Bash(git:*)
-argument-hint: [include low]
+allowed-tools: AskUserQuestion, Agent, Read, Write, Edit, Bash(git:*), Bash(gh pr view:*), Bash(gh issue create:*), Bash(date:*)
+argument-hint: [medium] [low] [budget N] [hours N]
 ---
 
 # Review Loop
 
-You are a **loop controller**, not a reporter. Your turn does not end until actionable issues = 0 or the user explicitly stops you. After every review, you count severities and — in the same response — either start the fix pipeline or declare the PR clean. **A response that contains a severity count but no subsequent tool call is a bug.**
+You are a **loop controller**, not a reporter. Your turn does not end until the loop reaches a stop condition or the user stops you. After every review you triage, count, and — in the same response — act. **A response that contains a count but no subsequent tool call is a bug.**
 
-Each iteration runs: **review → count → plan → implement → re-review**.
+Each iteration runs: **review → triage → count → plan (≤5) → implement → delta re-review → count**.
+
+## Design Rules
+
+These rules are why the loop is shaped the way it is. Do not relax them. The incident behind them, a diagnostic checklist, and the contracts between the chained commands are in `${CLAUDE_PLUGIN_ROOT}/docs/review-loop-design.md` — read it before changing this file.
+
+1. **Only the first review is a full review.** LLM reviewers are non-deterministic: a fresh pass over a large diff always finds something, whether or not the last fixes were good. Every re-review covers only the commits the previous iteration made, verifies each planned fix, and looks for regressions. It never re-reads unchanged code.
+2. **Only mechanical, in-scope fixes are fixed.** A finding that needs a product or design call is a **DECISION** for the user. A finding outside the PR's stated intent is **PARKED**. Neither is fixed by the loop, and neither counts toward the total.
+3. **Stop on convergence, not on zero.** The loop ends when the actionable count is zero, when the count stops falling, or when the iteration or time budget is spent. Then it asks the user once, with everything batched.
+4. **Every disposition is written to a branch-keyed ledger** so nothing is re-litigated across iterations or across runs on the same branch.
+5. **Ask late, ask once.** Do all the work that does not depend on the user, then ask one batched question. Exception: a decision that blocks a CRITICAL fix or more than half of the queue is asked immediately.
 
 ## Severity Threshold
 
-- **Default:** TOTAL = CRITICAL + HIGH + MEDIUM. LOW issues are acceptable and ignored.
-- **If the user included "low" in their arguments** (check if `$ARGUMENTS` contains "low"): TOTAL = CRITICAL + HIGH + MEDIUM + LOW. All severities must be fixed.
+- **Default:** TOTAL = CRITICAL + HIGH, counted over queued **FIX** items only.
+- `medium` in `$ARGUMENTS` → also count MEDIUM. `low` → also count MEDIUM and LOW.
+- DECISION and PARKED items are tracked separately and never count toward TOTAL.
+
+## Budget
+
+- **Iterations:** 3 by default. `budget N` in `$ARGUMENTS` overrides.
+- **Wall clock:** 2 hours by default, measured from Step 0. `hours N` overrides.
+- **Fixes per iteration:** 5. CRITICAL first, then HIGH, then MEDIUM, then LOW.
 
 ## Loop State
 
-The loop keeps state on disk under `.claude/review-loop/`:
+State lives under `.claude/review-loop/` in the target repo. **Never stage or commit anything under it.**
 
-- `plan.md` — the current iteration's fix plan (overwritten each iteration)
-- `wont-fix.md` — the **won't-fix ledger**, appended to and never cleared *during* a run, reset by Step 0 *between* runs
+| File | Owner | Purpose |
+|---|---|---|
+| `scope.md` | Step 0 | Branch, base, baseline HEAD, PR title/body, the PR's file list, threshold, budget, `loop_start` |
+| `ledger.md` | Orchestrator | Branch-keyed. Entries: `wont-fix`, `decision (pending)`, `decision (answered: …)`, `parked (pending | issue <url> | dropped | pulled)`. An entry marked `queued as FIX` or `pulled` is back in the loop and is not a drop match. Kept across runs on the same branch |
+| `queue.md` | Orchestrator | Validated FIX items not yet fixed |
+| `plan.md` | Planner | Current iteration's plan |
+| `history.md` | Orchestrator | One line per iteration: counts and fix commit range. Drives stall detection |
 
-`<N>` in the subagent prompts below is a placeholder — substitute the actual current iteration number before calling. Subagents do not share your context and cannot infer it, and the plan template stamps it into its output.
+`<N>` in subagent prompts is the current iteration number. Substitute it before calling — subagents do not share your context.
 
-**The ledger is what makes this loop terminate.** The planner may decide an issue should not be fixed at all — the fix would be riskier than the bug, the behavior is intentional, or the churn outweighs the value. But the next review will flag that issue again. Without the ledger the loop re-plans and re-rejects the same issue until the budget runs out. Ledgered issues are subtracted from TOTAL on every subsequent count. Step 2.6 is the only place that writes the ledger, copying the plan's `## Won't Fix` section.
+## Non-Interactive Mode
 
-**Never stage or commit anything under `.claude/review-loop/`.** It is loop scratch state, not part of the change under review.
+If the prompt that invoked you says not to prompt the user (for example `auto-branch`): skip the early decision gate in Step 2 (fixes that depend on a pending decision stay queued and are reported), and treat Step 6 as write-the-report-and-stop. Pending decisions and parked items go in the report unanswered.
 
 ## Instructions
 
-### Step 0: Initialize Loop State — RUN ONCE, BEFORE ANYTHING ELSE
+### Step 0: Initialize — RUN ONCE, BEFORE ANYTHING ELSE
 
-The state files live in the **target repo**, so a previous run's state is still on disk. Reset it before starting:
+1. **Exclude the scratch directory from git.** Resolve the exclude file with `git rev-parse --git-path info/exclude` — do not hardcode `.git/info/exclude`; in a linked worktree `.git` is a file. If the resolved file does not list `.claude/review-loop/`, append that line.
 
-1. **Exclude the scratch directory from git.** Resolve the exclude file's real path with `git rev-parse --git-path info/exclude` — **do not hardcode `.git/info/exclude`**, because in a linked worktree `.git` is a file rather than a directory and the hardcoded path does not exist. This toolkit is worktree-oriented, so that is a common case, not an edge one. Read the resolved path and, if it does not already list `.claude/review-loop/`, append that line and write it back. This is a local-only ignore — no repo change, no user-visible diff — and it is the only mechanical guard against the implementation agent's commit step sweeping loop scratch into the change under review. Prose reminders elsewhere in this command are backup, not the guard.
+2. **Keep or reset the ledger.** Read the current branch with `git branch --show-current`. Then:
+   - `ledger.md` exists and its first line is `# Review-loop ledger — branch: <this branch>` → **keep it.** This is a re-run on the same branch; earlier decisions stand.
+   - `ledger.md` exists for another branch, or has no branch header → archive it to `ledger.prev.md` and write a fresh one with the header.
+   - A legacy `wont-fix.md` exists → archive it to `wont-fix.prev.md`. Do not import it; it has no dispositions.
+   - Nothing exists → write a fresh `ledger.md` with the header.
 
-2. **Reset the ledger and plan file.** Always write a fresh empty `.claude/review-loop/wont-fix.md`, creating the directory if needed. If one already exists and is non-empty, it belongs to a *previous* loop run — most likely a different branch or PR — so archive it to `.claude/review-loop/wont-fix.prev.md` first. Carrying a stale ledger forward would silently discard issues from the current change that happen to resemble old rejections. Overwrite `plan.md` with `# (cleared)`.
+3. **Write `scope.md`.** Gather and record:
+   - `base`: `gh pr view --json baseRefName -q .baseRefName`; fall back to `main`, then `master`.
+   - `baseline_head`: `git rev-parse HEAD`.
+   - `files`: `git diff --name-only <base>...HEAD` — the PR's file set. Fixes stay inside it.
+   - `intent`: `gh pr view --json title,body`; if there is no PR, use `git log <base>..HEAD --format='%s%n%b'`.
+   - `threshold`, `budget`, `hours` from `$ARGUMENTS` or the defaults above.
+   - `loop_start`: `date -u +%Y-%m-%dT%H:%M:%SZ`.
 
-3. **Record the iteration counter.** This run starts at **iteration 1**. You will pass the current iteration number into every subagent prompt — subagents do not share your context and cannot infer it.
+4. **Reset per-run files.** `plan.md` → `# (cleared)`. `queue.md` → `# Queue`. `history.md` → `# History`. Iteration counter **N = 1**.
 
-Do this once per invocation, not once per iteration.
+### Step 1: Baseline Review — full PR, once
 
-### Step 1: Initial Review (or reuse existing)
+If a validated multi-PR review is already in this conversation, reuse it: say so and go to Step 2.
 
-If a multi-PR review has already been completed in this conversation — for example, the user ran `/multi-pr-review` immediately before invoking this command, or pasted validated review output into the prompt — **reuse those existing validated results as your starting state and skip running a fresh review.** State explicitly that you are reusing the existing review, then proceed to Step 2.
-
-Otherwise, run the multi-PR review via a subagent so the results return to you (the orchestrator) for evaluation. **Do NOT use Skill() directly** — Skill() takes over the current turn and prevents you from continuing with Step 2 in the same response.
+Otherwise run it through a subagent. **Do not call `Skill()` directly** — it takes over the turn and prevents Step 2 from running in the same response.
 
 ```
 Agent(
   description="Multi-PR review",
-  prompt="Run a full multi-PR review with validation. Invoke Skill(skill='rc-toolkit:multi-pr-review'). Return the complete validated results exactly as produced — include every issue with its severity, file, line, and description."
+  prompt="Run a full multi-PR review with validation. Invoke Skill(skill='rc-toolkit:multi-pr-review', args='--scope .claude/review-loop/scope.md --ledger .claude/review-loop/ledger.md'). Return the complete validated results exactly as produced — every issue with severity, file, line, description, reviewer attribution, and disposition (FIX / DECISION / OUT-OF-SCOPE), plus the ledgered-skipped list."
 )
 ```
 
-Either way, you must have a set of validated review results before moving to Step 2.
+### Step 2: Triage and Count — MANDATORY AFTER EVERY REVIEW
 
-### Step 2: Evaluate Results and Act — MANDATORY AFTER EVERY REVIEW
+Do all of this in one response, and end it with a tool call.
 
-After the review skill returns, perform this mechanical check and **immediately act on the result in the same response** — do not end your turn between the count and the action:
+1. **Route every VALID issue by disposition:**
+   - **FIX** → append to `queue.md` (file, line, severity, substance, reviewers). Skip anything already in the queue or the ledger, matching on file + substance — line numbers drift.
+   - **DECISION** → append to `ledger.md` as `decision (pending)` with the brief: question, options, recommendation, and the issue it came from.
+   - **OUT-OF-SCOPE** → append to `ledger.md` as `parked` with the reviewer's reason.
+2. **Count the queue at the threshold:**
+   `CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N → TOTAL: N | decisions pending: N | parked: N | ledgered: N`
+   On the baseline review, append `baseline: unresolved <TOTAL>` to `history.md` — Step 5's stall check compares against it.
+3. **Early decision gate.** A pending decision *blocks* a queued FIX item when the item's correct fix depends on the answer — the brief's `Blocks:` field names them; add any you can see yourself (same file, same behaviour). If a pending decision blocks a CRITICAL fix, or blocks more than half of the queue, go to Step 6a now, apply the answers, then continue here. Skipped in non-interactive mode.
+4. **Act:**
+   - TOTAL = 0 → go to Step 5's stop handling.
+   - TOTAL > 0 → call the Agent tool for Step 2.5 in this same response. Do not end the turn. Do not ask the user. Do not summarize.
 
-1. **Read the ledger.** Read `.claude/review-loop/wont-fix.md`. Step 0 created it, so it exists but may be empty — **an empty or unreadable ledger simply means nothing is ledgered yet, which is the normal state on iteration 1.** Do not treat a failed read as an error worth reporting. Discard any returned issue that matches a ledger entry (match on file + substance, not line number — lines drift between iterations).
-2. **Count the remaining issues by severity.** Count each severity level separately, excluding ledgered issues.
-3. **Write the counts explicitly:** `CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N → TOTAL: N (ledgered/won't-fix: N)` (compute TOTAL per the severity threshold above)
-4. **In the same response, take exactly one of these actions:**
-   - If TOTAL = 0 → output "LOOP COMPLETE: PR is clean" (noting any ledgered issues) and stop.
-   - If TOTAL > 0 → **immediately call the Agent tool** (Step 2.5 below) in this same response. Do not end your turn. Do not ask the user. Do not summarize what you plan to do next. The Agent tool call must appear in the same response as the severity count.
+### Step 2.5: Plan
 
-**The only valid response after a non-zero count is a tool call.** If you find yourself writing a message to the user about what issues exist without simultaneously spawning the next agent, you are bugging out. The count and the Agent call are one atomic action.
-
-### Step 2.5: Plan the Fixes
-
-Your Step 2 response MUST include this Agent tool call when TOTAL > 0. Do not skip planning — it runs on every iteration with actionable issues, regardless of how few or how simple they look. The plan is where every fix earns its justification and an evidence-based blast radius; that discipline is what keeps this iteration's fixes from becoming next iteration's issues.
+Select up to **5** items from the queue in severity order (CRITICAL → HIGH → MEDIUM → LOW; review order within a severity). Leave the rest queued. Do not skip planning for a small or trivial-looking set — the plan's blast-radius evidence is what keeps this iteration's fixes from becoming the next iteration's findings.
 
 ```
 Agent(
   description="Plan fixes",
-  prompt="This is iteration <N> of the review loop. Build a plan of attack for the following validated review issues:\n\n<PASTE THE ACTIONABLE ISSUES HERE, WITH SEVERITY, FILE, LINE, AND DESCRIPTION>\n\nInvoke Skill(skill='rc-toolkit:plan-fixes'). Treat the issues above as the validated review results the command expects. Return the summary it produces — the fix count, won't-fix count, dropped-by-ledger count, and any interactions found."
+  prompt="This is iteration <N> of the review loop. Build a plan of attack for the following validated, in-scope FIX issues (at most 5):\n\n<PASTE THE SELECTED ISSUES WITH SEVERITY, FILE, LINE, DESCRIPTION>\n\nInvoke Skill(skill='rc-toolkit:plan-fixes'). The scope file is .claude/review-loop/scope.md and the ledger is .claude/review-loop/ledger.md. Return the summary it produces — fix count, won't-fix count, needs-decision count, dropped-by-ledger count, and interactions."
 )
 ```
 
-Paste the actual issue text into the prompt, and substitute the real iteration number for `<N>` — the subagent does not share your context.
+### Step 2.6: Reconcile the Ledger
 
-### Step 2.6: Ledger the Plan's Won't-Fix Decisions
+Read `plan.md` before implementing anything.
 
-After the planning agent returns, read `.claude/review-loop/plan.md` and reconcile the ledger **before** implementing anything:
+1. Copy every `## Won't Fix` entry into `ledger.md` as `wont-fix` (file, substance, iteration, rationale), and remove that item from the queue. Deduplicate on file + substance.
+2. Copy every `## Needs Decision` entry into `ledger.md` as `decision (pending)` with its brief, and remove that item from the queue.
+3. **Disposition check.** Every item you passed to the planner must be in `## Fixes`, `## Won't Fix`, `## Needs Decision`, or `## Deferred` (deferred items simply stay queued). One missing from all four stays in the queue — note it; do not ledger it.
+4. If `## Fixes` is empty, append `iteration <N>: fixed 0, blocked 0, range none` to `history.md`, skip Steps 3 and 4, and go to Step 5.
 
-1. **Copy every entry under the plan's `## Won't Fix` section into `.claude/review-loop/wont-fix.md`** (creating it if absent), one entry per issue, each with the file, the issue substance, the iteration number, and the plan's stated rationale. Deduplicate against entries already in the ledger and against each other, matching on file + substance. These issues are permanently out of the loop and subtracted from every future count.
-2. **Sanity-check the disposition set.** Every actionable issue you passed to the planner must appear either as a fix in `## Fixes` or as an entry in `## Won't Fix`. If one is missing from both, do **not** ledger it — note it in your running summary and let the next re-review re-flag it. A silently dropped issue must stay in the loop, not vanish.
-3. **If the ledger absorbed every actionable issue** (the plan's `## Fixes` section is empty), skip Steps 3 and 4 and go directly to Step 5's count with the ledger applied — nothing was implemented, so there is nothing to re-review.
+Won't-fix and needs-decision authority belongs to the planner; the ledger write belongs to you. The implementation agent never touches the ledger.
 
-**Won't-fix authority belongs to the planner; the ledger write belongs to you.** Never ledger an issue the plan still fixes, and never let the implementation agent touch the ledger.
+### Step 3: Implement
 
-### Step 3: Implement the Plan
-
-Spawn the implementation agent. It implements **the plan**, not the raw review issues — the plan carries the justification and blast-radius analysis for every fix.
+Record `pre_fix = git rev-parse HEAD`, then:
 
 ```
 Agent(
   description="Implement fix plan",
-  prompt="Implement the fix plan at .claude/review-loop/plan.md. Read the plan first, then implement each fix exactly as specified, following existing code conventions.\n\nThe plan is the source of truth — every fix states its justification and blast radius. Follow its stated ordering. Do not redesign a fix while implementing it; if a fix turns out to be impossible or clearly wrong once you are in the code, implement the rest and report that one as blocked rather than improvising a different approach.\n\nImplement the test strategy each fix specifies. Respect the plan's blast-radius notes — if it names dependent callers or tests, update them too.\n\nAfter implementing, check for a pre-commit skill or command in the project first (search available skills for 'pre-commit', 'lint', 'check', 'format') and use it if found — only fall back to inferring tooling commands if no skill exists. Then commit and push. Do NOT stage anything under .claude/review-loop/. Report what you implemented and anything you could not."
+  prompt="Implement the fix plan at .claude/review-loop/plan.md. Read the whole plan first, then implement each fix exactly as specified, in the plan's stated order, following existing code conventions.\n\nThe plan is the source of truth. Do not redesign a fix while implementing it; if a fix turns out to be impossible or clearly wrong once you are in the code, implement the rest and report that one as blocked.\n\nEdit only files the plan names. If a fix needs a file that is not in the file list in .claude/review-loop/scope.md, do not make that edit — report the fix as blocked with the file it needed. New or updated test files, and the fixtures or helpers a test needs, are always in scope.\n\nImplement each fix's test strategy. Respect the blast-radius notes: update the dependent callers and tests the plan names.\n\nAfter implementing, look for a pre-commit skill or command in the project (search available skills for 'pre-commit', 'lint', 'check', 'format') and use it if found; only infer tooling commands if none exists. Then commit and push. Do NOT stage anything under .claude/review-loop/. Report each FIX-N as done or blocked, with the reason."
 )
 ```
 
-### Step 4: Re-Review
+After it returns, record `post_fix = git rev-parse HEAD`. Remove done items from the queue; blocked items stay. Append to `history.md`: `iteration <N>: fixed <n>, blocked <n>, range <pre_fix>..<post_fix>`. If a done item came from an answered decision or a pulled-in parked entry, update that ledger entry to `… — fixed in <post_fix>`.
 
-After the fix subagent completes, run the multi-PR review via a subagent so the results return to you for evaluation. **Do NOT use Skill() directly** — Skill() takes over the current turn and prevents you from continuing with Step 5.
+If `post_fix == pre_fix`, nothing was committed: treat every fix as blocked, write `range none`, skip Step 4, and go to Step 5 — there is no delta to review.
+
+### Step 4: Delta Re-Review
+
+Review only what the iteration changed. Never re-run the full review here.
 
 ```
 Agent(
-  description="Multi-PR re-review",
-  prompt="Run a full multi-PR review with validation. Invoke Skill(skill='rc-toolkit:multi-pr-review'). Return the complete validated results exactly as produced — include every issue with its severity, file, line, and description."
+  description="Multi-PR delta re-review",
+  prompt="Run a multi-PR review in delta mode. Invoke Skill(skill='rc-toolkit:multi-pr-review', args='--range <pre_fix>..<post_fix> --plan .claude/review-loop/plan.md --scope .claude/review-loop/scope.md --ledger .claude/review-loop/ledger.md'). Return the validated results exactly as produced — the per-fix verification table (FIX-N: resolved / not resolved / regression) and every new issue with severity, file, line, reviewer attribution, and disposition."
 )
 ```
 
-This keeps the review results in the orchestrator's context where they can be evaluated for the loop decision.
+### Step 5: Loop Check
 
-### Step 5: Loop Check — SAME RULES AS STEP 2
+1. **Increment N.** `M = N − 1` is the number of completed iterations. The budget compares `M`, not `N`.
+2. **Route the delta results.** A FIX-N reported *not resolved* returns to the queue at its severity. Regressions and new FIX issues go to the queue. DECISION and OUT-OF-SCOPE go to the ledger exactly as in Step 2. Skip anything already queued or ledgered.
+3. **Count** the queue at the threshold and write it:
+   `CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N → TOTAL: N | decisions pending: N | parked: N` (iteration M of budget B, elapsed H)
+   Append `unresolved <TOTAL>` to this iteration's `history.md` line.
+4. **Act, in this same response — first matching rule wins:**
+   - **Clean:** TOTAL = 0 → output `LOOP COMPLETE: PR is clean after M iterations`, write the report, then Step 6 if there are pending decisions or parked items; otherwise stop.
+   - **Stall:** TOTAL ≥ the previous count in `history.md` (the baseline on iteration 1), or this iteration fixed nothing and ledgered nothing → write the report, then Step 6.
+   - **Budget:** M ≥ iterations budget, or elapsed ≥ hours → write the report, then Step 6.
+   - **Otherwise:** call the Agent tool for Step 2.5.
 
-Track the number of fix+review iterations completed so far. Maintain an **iteration budget** that starts at **3**.
+### Step 6: Ask the User — batched, once
 
-**Increment the iteration counter `N` now**, before any further planning. Every subagent prompt in the next round must carry the new value — if `N` stays at 1, round two's plan and ledger entries are all stamped with the wrong iteration and the ledger's history becomes unreadable.
+Print the report **before** asking, so an unattended run leaves a complete record whatever happens to the question. Then batch everything into as few `AskUserQuestion` calls as possible (4 questions per call). If there are more than 3 pending decisions, ask the 3 highest-severity ones plus the continue question first, then the rest.
 
-Keep the two counters distinct: **`N` is the iteration about to run**, and **`M` is the number of iterations completed** — after the increment, `N = M + 1`. The budget check below compares `M` (completed) against the budget, not `N`. Conflating them ends the loop one round early. (`N` in the severity-count template below is an unrelated placeholder for a numeric count.)
+**6a. Decisions** — one question per pending decision. Question = the brief's question. Options = the brief's concrete alternatives, recommended first and labelled `(Recommended)`, plus `Defer — leave as is`.
 
-Perform the same atomic count-then-act as Step 2, **including the ledger subtraction**:
+**6b. Continue?** — only when the loop stopped with TOTAL > 0:
+- `Continue 1 more iteration` → budget += 1, go to Step 2.5.
+- `Continue 3 more iterations` → budget += 3, go to Step 2.5.
+- `Stop and report` → stop.
 
-1. **Read `.claude/review-loop/wont-fix.md` and discard matching issues.**
-2. **Count issues:** `CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N → TOTAL: N (ledgered: N)` (iteration M of budget — compute TOTAL per the severity threshold, which includes LOW only if the user asked for it)
-3. **In the same response, take exactly one action:**
-   - If TOTAL = 0 → output "LOOP COMPLETE: PR is clean after M iterations", list any ledgered won't-fix issues with their rationale, and stop.
-   - If TOTAL > 0 **and** iterations < budget → **immediately call the Agent tool** (Step 2.5 — plan first, not fix) in this same response. No turn break. No summary. Just the tool call.
-   - If TOTAL > 0 **and** iterations ≥ budget → **immediately call AskUserQuestion** in this same response (see below). Do NOT output a summary and stop.
+**6c. Parked items** — one multi-select question listing every `parked` entry not yet resolved, with options `File as GitHub issues`, `Pull into this loop`, `Drop`.
 
-#### Iteration-budget exhausted: ask the user
+**Apply the answers:**
+- Decision answered → update its ledger entry to `decision (answered: <choice>)`. If the choice needs code, add a FIX item to the queue tagged `from-decision` and mark the entry `decision (answered: <choice> — queued as FIX)` so the validator and planner do not drop it; it is planned in the next iteration if the loop continues, or listed under "Follow-up" in the final report if it does not.
+- `Defer` → the entry stays `pending`; it is not re-asked this run.
+- After applying every answer, re-print the `### Decisions needed`, `### Parked`, and `### Follow-up` sections so the answers, issue URLs, and queued follow-ups are on screen.
+- Then: if the queue now has items at the threshold and the budget is not exhausted (M < iterations, elapsed < hours), go to Step 2.5 — do not leave `from-decision` fixes for later when the loop can still run. Otherwise list them under "Follow-up" in the report and stop.
+- Parked → `File as GitHub issues`: open one issue per item with `gh issue create` (title from the substance, body from the finding and the reason it is out of scope) and record the URL in the ledger entry. `Pull into this loop`: move to the queue as FIX and mark the entry `parked (pulled)`. `Drop`: mark `parked (dropped)`.
 
-When the iteration budget is exhausted with issues still remaining, call `AskUserQuestion` with one question and these three options:
+## Report Format
 
-- **"Continue 1 more iteration"** — extend the budget by 1 and resume at Step 2.5.
-- **"Continue 3 more iterations"** — extend the budget by 3 and resume at Step 2.5.
-- **"Stop and report"** — stop the loop and report the remaining issues for manual intervention.
+```
+## Review-loop report — <branch>
 
-Include the current iteration count and a brief summary of the remaining issue counts (`CRITICAL: N, HIGH: N, MEDIUM: N, LOW: N`) in the question header so the user can make an informed choice.
+Iterations: M of B · elapsed: H · stop reason: <clean | stall | budget | user>
 
-Apply the user's answer:
-- If they pick "Continue 1 more iteration" → budget += 1, go to Step 2.5.
-- If they pick "Continue 3 more iterations" → budget += 3, go to Step 2.5.
-- If they pick "Stop and report" → stop and report.
+### Fixed
+| Iter | Commits | Fixes |
+| ... |
 
-If the budget is exhausted again later, prompt again with the same three options.
+### Remaining (in scope, unfixed)
+- SEVERITY — file:line — substance — why it is still open
 
-**Do not stop after receiving review results without performing the count. The loop continues until TOTAL = 0 under the severity threshold in effect (CRITICAL + HIGH + MEDIUM, plus LOW if the user asked for it), or the user explicitly chooses to stop at the budget-exhausted prompt.**
+### Decisions needed
+- file — question — options — recommendation — status (pending | answered: …)
+
+### Parked (out of scope)
+- file — substance — reason — status (pending | issue <url> | dropped)
+
+### Won't fix
+- file — substance — rationale (iteration N)
+
+### Follow-up
+- FIX items created from answered decisions but not yet implemented
+```
 
 ## Rules
 
-- **Every evaluation (Step 2 / Step 5) must end with a tool call, never with text.** The severity count and the subsequent action (Agent call, AskUserQuestion, or "LOOP COMPLETE" declaration) are one atomic response. If your response after a review contains only text and no tool call, you have stopped incorrectly.
-- **MEDIUM is not acceptable by default.** TOTAL = CRITICAL + HIGH + MEDIUM (or + LOW if user requested it). If TOTAL > 0, you loop.
-- **Always subtract the ledger before counting.** Once an issue reaches the ledger it must never be re-planned — skipping this is how the loop fails to terminate. An issue only reaches the ledger through the plan's `## Won't Fix` section, reconciled in Step 2.6.
-- **Never skip the planning stage**, even for a single trivial-looking issue. The plan's justification and blast-radius requirements are where side effects get caught before implementation, and "trivial" fixes are a common source of them.
-- **The validate-review "Recommendations" section is informational only.** Ignore "merge-ready" / "needs-fixes" labels. Only the mechanical severity count determines your action.
-- **Reuse an existing review** if one is already present in the conversation — do not waste a review run.
-- Default iteration budget is 3. When exhausted, use `AskUserQuestion` — never silently stop.
-- If an iteration fixes zero issues **and adds nothing to the ledger**, stop and report the stall (do not consume more budget). An iteration that only ledgered issues counts as progress.
-- Do not fix LOW severity issues unless the user requested it via arguments.
-- **Use subagents for every stage** — review (1, 4), planning (2.5), implementation (3). The orchestrator only counts, decides, and writes the ledger. Never call `Skill()` directly from the orchestrator; it takes over the turn and breaks the atomic count-then-act rule.
-- **Never commit `.claude/review-loop/`.** If the implementation agent reports staging it, that is a bug — unstage it.
+- **Every triage or loop check ends with a tool call, never with text.** The count and the action are one response.
+- **Only FIX items are counted or planned.** Decisions and parked items are routed, never fixed by the loop.
+- **Never expand scope.** A fix that needs a file outside `scope.md`'s file list is a decision, not a fix.
+- **Delta re-review only.** The full review runs once, in Step 1.
+- **Stall means stop.** A count that does not fall is the signal that the reviewers are finding new things, not that the code is getting worse. Report it; do not spend budget on it.
+- **Always subtract the ledger before counting.** An issue reaches the ledger only through a planner disposition or a user answer; once there it is never re-planned.
+- **Never skip planning**, even for a single issue.
+- **The validate-review "Recommendations" section is informational.** Only the mechanical count decides the action.
+- **Reuse an existing review** if one is already in the conversation.
+- **Use subagents for every stage.** The orchestrator only routes, counts, decides, and writes the ledger. Never call `Skill()` from the orchestrator.
+- **Never commit `.claude/review-loop/`.** If the implementation agent reports staging it, unstage it.
