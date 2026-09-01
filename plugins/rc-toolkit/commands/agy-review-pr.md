@@ -59,7 +59,7 @@ Below that line, include the last attempt's stderr (`tmp/agy_warmup_error.txt`) 
 Run this exact command using the Bash tool with a 600s timeout. Do NOT change any flags or arguments. The only permitted substitutions: (1) when `--range <from>..<to>` was given, replace `gh pr diff > tmp/pr.diff` with `git diff <from>..<to> > tmp/pr.diff`; (2) when a review brief was given, append a final paragraph `REVIEW BRIEF: <text>` to the `-p` prompt, after the OUTPUT OVERRIDE paragraph.
 
 ```bash
-mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" -p "/code-review:pr-code-review
+mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" --print-timeout 9m30s -p "/code-review:pr-code-review
 
 DIFF SOURCE: The PR diff has already been fetched to 'tmp/pr.diff' in the workspace. Read that file to get the diff. Do NOT run 'gh pr diff' or otherwise re-fetch it.
 
@@ -75,6 +75,8 @@ NO SPECULATION: Do not report a finding that depends on a fact you cannot verify
 
 OUTPUT OVERRIDE: Do NOT post this review to GitHub. Do NOT call create_pending_pull_request_review, add_comment_to_pending_review, or submit_pending_pull_request_review, and do NOT create any pending review or inline PR comments. Instead, write the complete review (summary plus every finding with file:line and severity) as plain text in your final response so it can be consolidated." 2>tmp/agy_code_review_error.txt
 ```
+
+**Timeout:** The Bash tool `timeout` stays at **600s (10 min)** — the harness maximum, so it cannot go higher on a stock install. `--print-timeout 9m30s` tells `agy` to stop waiting ~30s *before* that hard kill, so an overrunning review ends with `agy`'s own graceful timeout message (and a populated `tmp/agy_code_review_error.txt`) instead of an abrupt Bash kill that looks identical to the empty-stdout failure in Step 2. Without the flag, `agy` print mode defaults to a **5-minute** wait — too short for large diffs, which is why it is set explicitly. Keep `--print-timeout` just under the Bash `timeout`: if you raise one, raise the other — but note the Bash tool cannot exceed `600000` ms unless `BASH_MAX_TIMEOUT_MS` is raised in settings, which this plugin cannot do for its users.
 
 **Model:** The model MUST be `"Gemini 3.7 Flash (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. The `(High)` suffix selects the highest reasoning effort and must be kept — do NOT drop to `(Medium)`/`(Low)`. Do NOT substitute any other value (e.g. the API id `gemini-3.7-flash-high`, `gemini-flash`, or an older model like `Gemini 3.1 Pro (High)`).
 
@@ -104,5 +106,5 @@ Then report the detail below it. Common issues:
 - `agy` not authenticated — run `agy` once interactively to sign in with Google
 - `code-review` plugin not installed (`agy plugin install code-review`) — this provides the `/code-review:pr-code-review` command
 - Model not available or rate limited
-- Review exceeded print mode's default 5m wait — rerun with a longer `--print-timeout` (e.g. `--print-timeout 15m`)
+- Review hit the timeout — Step 1 already sets `--print-timeout 9m30s`, just under the 600s (10-min) Bash `timeout` ceiling. A review that needs longer cannot fit a stock harness's 10-min Bash cap; either narrow the diff (e.g. review with `--range`) or, only where you control the session, raise `BASH_MAX_TIMEOUT_MS` in settings and bump both the Bash `timeout` and `--print-timeout` together
 - Permission soft-denial (`jetski: no output produced — a tool required the "command" permission...`) — the ALLOWED COMMANDS list above makes this rare; if it recurs, `agy` reached for a command outside the list (or one carrying a redirect). Read `${CLAUDE_PLUGIN_ROOT}/docs/agy-troubleshooting.md`; the `permissions.allow` allowlist there must be a superset of the prompt's list.
