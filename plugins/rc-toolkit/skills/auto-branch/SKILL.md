@@ -1,11 +1,11 @@
 ---
 name: auto-branch
-description: This skill should be used when the user asks to "auto branch", "auto-branch", "work on this autonomously", "handle this issue end to end", "implement this and create a PR", or wants fully autonomous development on a feature branch including implementation, testing, PR creation, review, and CI monitoring. Assumes the agent is already in a worktree/feature branch.
+description: This skill should be used when the user asks to "auto branch", "auto-branch", "work on this autonomously", "handle this issue end to end", "implement this and create a PR", or wants fully autonomous development on a feature branch including implementation, testing, PR creation, review, CI monitoring, and in-app verification posted to the PR. Assumes the agent is already in a worktree/feature branch.
 ---
 
 # Auto-Branch: Autonomous Feature Development
 
-End-to-end autonomous development workflow for feature branches. Takes a task description or issue number, implements the solution, creates a PR, runs comprehensive reviews, and monitors CI — all with minimal user intervention.
+End-to-end autonomous development workflow for feature branches. Takes a task description or issue number, implements the solution, creates a PR, runs comprehensive reviews, monitors CI, and verifies the change in the running app with evidence posted to the PR — all with minimal user intervention.
 
 **Assumption:** The agent is already checked out in the target feature branch or worktree. This skill does NOT create branches.
 
@@ -82,10 +82,10 @@ Delegate the review-and-fix loop to the `rc-toolkit:review-loop` skill. It runs 
 
    In Codex, load the `developer-workflows` skill and run the `review-loop` workflow it maps to, delegating it the same way.
 
-   **Do not call `Skill(skill="rc-toolkit:review-loop")` directly here.** Skill() loads the loop's instructions into the current turn, and `review-loop` is written as a terminal controller that ends with "stop" — Phases 8 and 9 would never run. This is the same constraint `review-loop` states for itself: its orchestrator spawns subagents rather than calling `Skill()`, because Skill() takes over the turn.
+   **Do not call `Skill(skill="rc-toolkit:review-loop")` directly here.** Skill() loads the loop's instructions into the current turn, and `review-loop` is written as a terminal controller that ends with "stop" — Phases 8 through 10 would never run. This is the same constraint `review-loop` states for itself: its orchestrator spawns subagents rather than calling `Skill()`, because Skill() takes over the turn.
 
 2. Let the loop run to completion. It handles its own severity counting, fix subagents, re-review, and iteration budget. Do NOT run `multi-pr-review` manually here — `review-loop` owns this phase.
-3. Record the subagent's returned summary (iterations, issues found/fixed, anything left unfixed and why, pending decisions, parked items) for the Phase 9 summary. Because the loop runs non-interactively here, decisions and parked items come back unanswered in the report rather than as prompts — carry them into Phase 9 so the user can answer them and decide whether to keep going.
+3. Record the subagent's returned summary (iterations, issues found/fixed, anything left unfixed and why, pending decisions, parked items) for the Phase 10 summary. Because the loop runs non-interactively here, decisions and parked items come back unanswered in the report rather than as prompts — carry them into Phase 10 so the user can answer them and decide whether to keep going.
 4. Proceed to Phase 8.
 
 ### Phase 8: CI Monitoring
@@ -106,9 +106,31 @@ Delegate CI monitoring to the `rc-toolkit:ci-loop` skill, which polls the latest
    **Do not call `Skill(skill="rc-toolkit:ci-loop")` directly here** — same reason as Phase 7. `ci-loop` ends every path with "report and stop", which would end the turn before Phase 9 runs.
 
 2. Let it run to completion. It owns this phase: polling, failure classification, pre-commit checks, commits, pushes, iteration limits, and stall detection. Do NOT reimplement CI polling or fetch failure logs manually here.
-3. Record the subagent's returned status and diagnostics for the Phase 9 summary.
+3. Record the subagent's returned status and diagnostics for the Phase 10 summary.
 
-### Phase 9: Final Summary
+### Phase 9: Verify and Demonstrate
+
+Prove the finished change works in the running app and post the evidence on the PR, so a reviewer can see it working without checking out the branch. This runs on the branch's final state — after review fixes and CI fixes have landed — so it shows what will actually merge.
+
+1. Decide whether it applies. It applies when the change alters something a user can observe: a web page or component, a TUI or desktop screen, CLI output or help text, an API response, a rendered document or diagram. It does not apply to internal refactors, CI and tooling config, dependency bumps, or test-only changes. When it does not apply, record `Verification: not applicable — <reason>` for Phase 10 and skip to it.
+2. Launch and drive the app **through a subagent**, so launch noise stays out of this context and control returns here. In Claude Code, call:
+
+   ```
+   Agent(
+     description="Verify feature",
+     prompt="Launch and drive this project's app at the current branch HEAD and verify <the behaviour the task changed>. Invoke Skill(skill='run') and follow it — it picks the launch recipe by project type and reuses any project run-* skill. Exercise the changed behaviour, not just the entrypoint. If the surface is visual, save a screenshot PNG to /tmp/rc-auto-branch/verify-1.png and look at it — a blank or error frame is a failed launch, not evidence. If the surface is text (CLI, API), capture the relevant output. Shut down anything you started. Do NOT prompt the user. Return: what was launched and how, what was exercised, what was observed, the path of any capture, and any launch failure."
+   )
+   ```
+
+   In Codex, follow the same recipe by hand: a dev server plus a Playwright script (`npx playwright screenshot --full-page <url> <file>`) for web, tmux `send-keys`/`capture-pane` for a TUI, direct invocation for a CLI.
+
+3. Check the evidence before using it. `gh` accepts png, jpg, jpeg, gif, webp, and svg images up to 10 MB and mp4, mov, and webm videos up to 100 MB; the extension decides the type. A failed capture, an unsupported file, or a blank frame means the comment goes out text-only with a note saying why.
+4. Post a `## Verification` comment on the PR with `gh pr comment <number> --body-file <file> --attach '<capture>#<alt text>'`. The body states what was exercised, what was observed, and the commit SHA verified; text evidence goes in a fenced code block. Reference the image in the body with the identical path passed to `--attach`, for example `![Settings page after the change](/tmp/rc-auto-branch/verify-1.png)`, so `gh` rewrites it in place — an unreferenced attachment is appended to the end instead. Comment rather than edit the PR body: a comment is additive and tied to the final state, while the Phase 6 description stays intact. If `gh` rejects the attachment (attachments need GitHub.com or Enterprise Cloud; GHES is unsupported), post the text-only comment and note the reason.
+5. Record for Phase 10: what was exercised, what was observed, and the comment URL — or the reason nothing was posted.
+
+Do not fabricate evidence. If the app cannot be launched or the behaviour cannot be reached, say so in the summary instead of posting a comment.
+
+### Phase 10: Final Summary
 
 Present a complete summary for the user to review and merge.
 
@@ -137,6 +159,11 @@ Present a complete summary for the user to review and merge.
 - **Final status:** [pass/fail]
 - [If failed: what's still broken and recommended next steps]
 
+### Verification
+- **Exercised:** [what was launched and driven, or "not applicable — reason"]
+- **Observed:** [what the app showed]
+- **Evidence:** [PR comment URL with the screenshot or output, or why none was posted]
+
 ### Ready to Merge?
 [Assessment: yes/no with reasoning]
 ```
@@ -147,8 +174,9 @@ Present a complete summary for the user to review and merge.
 - **Fix forward** — when reviews or CI find issues, fix them rather than reporting back
 - **Incremental commits** — commit logical units of work, not one giant commit
 - **Match conventions** — follow the existing codebase style, test patterns, and tooling
-- **Subagents for parallelism and for control** — use the Agent tool to parallelize independent work, and to run any delegated workflow that ends by stopping (Phases 7 and 8), so control returns here for the next phase
+- **Subagents for parallelism and for control** — use the Agent tool to parallelize independent work, and to run any delegated workflow that ends by stopping (Phases 7 and 8) or that launches the app (Phase 9), so control returns here for the next phase
 - **Transparency in summary** — the final summary should give the user full confidence to review and merge
+- **Evidence on the PR** — when the change is observable, verify it in the running app and post the proof (Phase 9), so a reviewer sees it working before reading the diff
 
 ## Additional Resources
 
