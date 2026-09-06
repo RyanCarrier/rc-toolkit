@@ -34,10 +34,10 @@ Uses the Antigravity CLI (`agy`) and its `code-review` plugin to autonomously ga
 Run this exact command with the Bash tool, setting the tool's **`timeout` to `300000` (5 minutes)**. A trivial prompt returns in seconds, so 5 minutes is a deliberately generous ceiling; if `agy` hangs, the timeout kills it and counts as a failed attempt.
 
 ```bash
-mkdir -p tmp && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" -p "Reply with exactly this token and nothing else: AGY_WARMUP_OK" 2>tmp/agy_warmup_error.txt
+mkdir -p tmp && agy --add-dir "$(pwd)" --model "Gemini 3.8 Flash (High)" -p "Reply with exactly this token and nothing else: AGY_WARMUP_OK" 2>tmp/agy_warmup_error.txt
 ```
 
-**Model:** MUST be the same model string as Step 1 (`"Gemini 3.7 Flash (High)"`). Keeping them identical means the warm-up exercises the exact auth + model path the review uses, so a pass is a real signal — and it catches model-unavailable / rate-limit / the non-TTY stdout-drop failure before the expensive call. If you ever change the model in Step 1, change it here too. `--add-dir "$(pwd)"` matches Step 1 and grants `agy` the same workspace trust, so the warm-up runs in the same context the review will. The `2>tmp/...` redirect is the *outer* shell's, not agy's, so it is fine (same as Step 1).
+**Model:** MUST be the same model string as Step 1 (`"Gemini 3.8 Flash (High)"`). Keeping them identical means the warm-up exercises the exact auth + model path the review uses, so a pass is a real signal — and it catches model-unavailable / rate-limit / the non-TTY stdout-drop failure before the expensive call. If you ever change the model in Step 1, change it here too. `--add-dir "$(pwd)"` matches Step 1 and grants `agy` the same workspace trust, so the warm-up runs in the same context the review will. The `2>tmp/...` redirect is the *outer* shell's, not agy's, so it is fine (same as Step 1).
 
 **Evaluate each attempt:**
 
@@ -59,7 +59,7 @@ Below that line, include the last attempt's stderr (`tmp/agy_warmup_error.txt`) 
 Run this exact command using the Bash tool with a 600s timeout. Do NOT change any flags or arguments. The only permitted substitutions: (1) when `--range <from>..<to>` was given, replace `gh pr diff > tmp/pr.diff` with `git diff <from>..<to> > tmp/pr.diff`; (2) when a review brief was given, append a final paragraph `REVIEW BRIEF: <text>` to the `-p` prompt, after the OUTPUT OVERRIDE paragraph.
 
 ```bash
-mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.7 Flash (High)" --print-timeout 9m30s -p "/code-review:pr-code-review
+mkdir -p tmp && gh pr diff > tmp/pr.diff && agy --add-dir "$(pwd)" --model "Gemini 3.8 Flash (High)" --print-timeout 9m30s -p "/code-review:pr-code-review
 
 DIFF SOURCE: The PR diff has already been fetched to 'tmp/pr.diff' in the workspace. Read that file to get the diff. Do NOT run 'gh pr diff' or otherwise re-fetch it.
 
@@ -78,7 +78,7 @@ OUTPUT OVERRIDE: Do NOT post this review to GitHub. Do NOT call create_pending_p
 
 **Timeout:** The Bash tool `timeout` stays at **600s (10 min)** — the harness maximum, so it cannot go higher on a stock install. `--print-timeout 9m30s` tells `agy` to stop waiting ~30s *before* that hard kill, so an overrunning review ends with `agy`'s own graceful timeout message (and a populated `tmp/agy_code_review_error.txt`) instead of an abrupt Bash kill that looks identical to the empty-stdout failure in Step 2. Without the flag, `agy` print mode defaults to a **5-minute** wait — too short for large diffs, which is why it is set explicitly. Keep `--print-timeout` just under the Bash `timeout`: if you raise one, raise the other — but note the Bash tool cannot exceed `600000` ms unless `BASH_MAX_TIMEOUT_MS` is raised in settings, which this plugin cannot do for its users.
 
-**Model:** The model MUST be `"Gemini 3.7 Flash (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. The `(High)` suffix selects the highest reasoning effort and must be kept — do NOT drop to `(Medium)`/`(Low)`. Do NOT substitute any other value (e.g. the API id `gemini-3.7-flash-high`, `gemini-flash`, or an older model like `Gemini 3.1 Pro (High)`).
+**Model:** The model MUST be `"Gemini 3.8 Flash (High)"` — exactly as shown above, including the quotes and capitalization. This is an Antigravity model display string (run `agy models` to see the available list), NOT a Gemini API id. The `(High)` suffix selects the highest reasoning effort and must be kept — do NOT drop to `(Medium)`/`(Low)`. Do NOT substitute any other value (e.g. the API id `gemini-3.8-flash-high`, `gemini-flash`, or an older model like `Gemini 3.7 Flash (High)`).
 
 **Diff source:** The outer command fetches the diff itself with `gh pr diff > tmp/pr.diff` and points `agy` at the file. That redirect runs in *your* shell, which permits it — the restriction applies only to commands `agy` runs. This removes the dominant failure by construction rather than relying on `agy` choosing a non-redirecting command every run, and it preserves the base-branch behaviour described above, since `gh pr diff` returns the same GitHub-computed diff the plugin would fetch. If there is no PR for the current branch the chain fails fast with a visible `gh` error, which is the desired outcome — better than `agy` aborting silently.
 
