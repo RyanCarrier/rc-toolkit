@@ -49,11 +49,12 @@ Available on both hosts.
 |-------|-------------|
 | `auto-branch` | Fully autonomous feature development — implements, tests, creates PR, reviews, monitors CI, verifies the change in the running app with a screenshot posted to the PR, and summarizes |
 | `developer-workflows` | Runs the command workflows above on hosts without native slash commands (Codex). Inert in Claude Code, which uses the commands directly |
+| `fix-ci-failures` | Hunts CI jobs that fail across recent runs, proves each flaky or genuine with a temporary repeat-run workflow, fixes the cause, validates on CI, then reverts the workflow. Repo-specific knowledge (workflow call graph, repro commands, known flake signatures) lives in a committed `.claude/ci-context.md` that the skill bootstraps on first run and appends to as it resolves failures |
 | `wizard` | Generates an interactive bash wizard (from `template.sh`) that walks a human through steps only they can do — dashboards, credentials, CI secrets, one-off migrations. Copied from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT |
 
 ## Prerequisites
 
-- [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `get-copilot-review`
+- [GitHub CLI](https://cli.github.com/) (`gh`) — required by `get-ci-failures`, `get-copilot-review`, `fix-ci-failures`
 - [Antigravity CLI](https://antigravity.google/) (`agy`) — required by `agy-review-pr` (Google's successor to the Gemini CLI)
   - Install: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
   - Authenticate by running `agy` once (Google sign-in)

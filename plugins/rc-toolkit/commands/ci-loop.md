@@ -79,7 +79,7 @@ Classify each failure:
 
 - **Fixable:** Lint errors, type errors, test failures caused by code in this branch, formatting issues, build errors from code changes.
 - **Not fixable (stop and report):**
-  - Flaky infrastructure (network timeouts, registry errors, runner issues)
+  - Flaky infrastructure (network timeouts, registry errors, runner issues) — if the same flake keeps recurring, suggest the `rc-toolkit:fix-ci-failures` skill, which proves flaky vs genuine with a repeat-run workflow and fixes the underlying race
   - Failures in code outside this branch's changes
   - Permission or secret/credential issues
   - Dependency resolution failures from external registries
