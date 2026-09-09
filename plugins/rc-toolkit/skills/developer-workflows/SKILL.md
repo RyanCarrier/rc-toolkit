@@ -1,6 +1,6 @@
 ---
 name: developer-workflows
-description: This skill should be used on hosts without native rc-toolkit slash commands (primarily Codex) when the user asks to "quick review", "review local changes", "run a multi PR review", "break down this review", "validate review findings", "plan review fixes", "fix and re-review", "run the review loop", "diagnose CI", "run the CI loop", "get the Copilot review", "handle the Copilot review", "review with Codex", "review with Antigravity", "create an issue", "handle issue 123", "commit and push", or "squash merge". In Claude Code the native rc-toolkit slash commands take precedence over this skill.
+description: This skill should be used on hosts without native rc-toolkit slash commands (primarily Codex) when the user asks to "quick review", "review local changes", "run a multi PR review", "break down this review", "validate review findings", "plan review fixes", "fix and re-review", "run the review loop", "diagnose CI", "run the CI loop", "get the Copilot review", "handle the Copilot review", "request a Copilot review and handle it", "review with Codex", "review with Antigravity", "create an issue", "handle issue 123", "commit and push", or "squash merge". In Claude Code the native rc-toolkit slash commands take precedence over this skill.
 ---
 
 # Developer Workflows
@@ -42,6 +42,7 @@ Map the user's intent to a file under `../../commands/`:
 | Wait, repair, and retry CI | `ci-loop.md` |
 | Fetch and validate Copilot review | `get-copilot-review.md` |
 | Fetch, validate, and fix Copilot review | `handle-copilot-review.md` |
+| Request a Copilot review, wait for it, then handle it | `copilot-and-handle.md` |
 | Run Codex review on local changes | `codex-review-local.md` |
 | Run Codex review on a branch or PR | `codex-review-pr.md` |
 | Run Antigravity PR review | `agy-review-pr.md` |

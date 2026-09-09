@@ -17,6 +17,7 @@ command.
 | `/rc-toolkit:get-ci-failures` | Analyze the latest failing GitHub Actions run |
 | `/rc-toolkit:get-copilot-review` | Fetch the most recent Copilot review on the current PR and validate its findings |
 | `/rc-toolkit:handle-copilot-review` | Fetch the latest Copilot review, validate it, and fix the real issues |
+| `/rc-toolkit:copilot-and-handle` | Request a Copilot review on the current PR, wait for it, then validate and fix the findings |
 | `/rc-toolkit:handle-issue` | Fetch a GitHub issue by number and plan the fix |
 | `/rc-toolkit:create-issue` | Draft and open a new GitHub issue in the current repo |
 | `/rc-toolkit:squash-merge` | Squash-merge current PR and delete branch (worktree-safe) |
