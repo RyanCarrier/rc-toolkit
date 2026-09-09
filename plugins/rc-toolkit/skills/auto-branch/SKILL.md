@@ -24,6 +24,8 @@ Before starting any work, gather enough context to proceed autonomously.
 
 Understand the codebase context relevant to the task.
 
+**If the task itself is to fix CI flake or failing CI** — an issue asking to hunt down flaky tests, repair jobs that keep failing, or explain why CI keeps breaking — use the `rc-toolkit:fix-ci-failures` skill for the core work. For this class of task it stands in for most of this workflow: it surveys recent runs, proves each failure flaky vs genuine with a temporary repeat-run workflow, fixes the cause, validates the fix on CI, cleans up the temporary workflow, and records what it learned in `.claude/ci-context.md`. Delegate it through a subagent (it ends by stopping, like the Phases 7–9 skills) and resume at Phase 10 to summarize. This is distinct from Phase 8 below, which repairs CI failures introduced by *this* PR's own changes.
+
 1. Explore the repository structure — identify key files, patterns, and conventions
 2. If fixing a bug, reproduce and diagnose the root cause
 3. If adding a feature, identify where it fits in the architecture
@@ -106,7 +108,7 @@ Delegate CI monitoring to the `rc-toolkit:ci-loop` skill, which polls the latest
    **Do not call `Skill(skill="rc-toolkit:ci-loop")` directly here** — same reason as Phase 7. `ci-loop` ends every path with "report and stop", which would end the turn before Phase 9 runs.
 
 2. Let it run to completion. It owns this phase: polling, failure classification, pre-commit checks, commits, pushes, iteration limits, and stall detection. Do NOT reimplement CI polling or fetch failure logs manually here.
-3. Record the subagent's returned status and diagnostics for the Phase 10 summary.
+3. Record the subagent's returned status and diagnostics for the Phase 10 summary. If the loop reports it is blocked by a flaky or pre-existing failure rather than one this PR introduced, that is `rc-toolkit:fix-ci-failures` territory — note it as a recommended follow-up in the summary, or run that skill via a subagent if resolving it is in scope.
 
 ### Phase 9: Verify and Demonstrate
 
